@@ -647,7 +647,7 @@ function MachineSpec({machine}) {
 // メインアプリ
 // ═══════════════════════════════════════════════
 
-export default function App() {
+function App() {
   const [machine, setMachine]   = useState(null);
   const [budget, setBudget]     = useState(10000);
   const [exchange, setExchange] = useState(EXCHANGE_OPTIONS[0]);
@@ -827,6 +827,10 @@ export default function App() {
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  React.createElement(App)
+);
 </script>
 </body>
 </html>
