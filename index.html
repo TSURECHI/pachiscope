@@ -13,1305 +13,1026 @@
 html,body{height:100%;background:#07071a;font-family:'Noto Sans JP',sans-serif;color:#e8e8f8}
 #root{height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column}
 input,select,textarea,button{font-family:inherit}
-::-webkit-scrollbar{width:3px}
-::-webkit-scrollbar-thumb{background:#252550;border-radius:2px}
-.mono{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#252550;border-radius:2px}
 </style>
 </head>
 <body><div id="root"></div>
 <script type="text/babel" data-presets="react">
-const {useState,useMemo,useEffect,useCallback,useRef}=React;
+const {useState,useMemo,useCallback,useRef}=React;
 
 // ═══════════════════════════════════════════════════════════
-// 機種データベース（公式スペック準拠）
+// 機種データベース（P-WORLD / DMMぱちタウン 公式スペック準拠）
+// 2025年現行設置機種 中心
 // ═══════════════════════════════════════════════════════════
 const MACHINES=[
-  // ── 甘デジ・ライト ──────────────────────────────────────
-  {
-    id:'rezero99',
-    name:'P Re:ゼロ 鬼がかり 99ver.',
-    short:'リゼロ99',
-    kana:'りぜろ99',tags:['リゼロ','rezero','re:ゼロ','99'],
-    maker:'大都技研', prob:1/99.9, typeLabel:'甘デジ',
-    // 初当り後の振り分け
-    rushRate:0.50,        // RUSH(ST)突入率
-    rushContRate:0.73,    // ST継続率
-    // 出玉振り分け（通常当り）
-    normalPayouts:[{balls:900,rate:1.0}],
-    // ST中出玉振り分け
-    rushPayouts:[{balls:900,rate:0.75},{balls:1800,rate:0.25}],
-    // LT
-    hasLT:false, ltRate:0, ltContRate:0,
-    ltPayouts:[],
-    border:18.0, yutai:null,
-    memo:'最軽量。残り少ない投資での捲りに。出玉は控えめ。',
-  },
-  {
-    id:'eva15_129',
-    name:'P 新世紀エヴァンゲリオン〜未来への咆哮〜 PREMIUM 129ver.',
-    short:'エヴァ15 129',
-    kana:'えヴぁ15 129',tags:['エヴァ','eva','エヴァンゲリオン','未来への咆哮','129'],
-    maker:'SANYO', prob:1/129.8, typeLabel:'ライト',
-    rushRate:0.75,        // V-ST機。時短込みトータル突入率
-    rushContRate:0.81,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:1.0}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.4, yutai:null,
-    memo:'V-ST機。突入率75%・継続率81%。全当り1500発で安定。',
-  },
-  {
-    id:'rezero129',
-    name:'P Re:ゼロ 鬼がかり 199ver.',
-    short:'リゼロ199',
-    kana:'りぜろ199',tags:['リゼロ','rezero','199'],
-    maker:'大都技研', prob:1/199.8, typeLabel:'ライトミドル',
-    rushRate:0.55, rushContRate:0.75,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.60},{balls:3000,rate:0.40}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.5, yutai:null,
-    memo:'55%RUSH突入。RUSH中40%で3000発の大波あり。',
-  },
-  {
-    id:'garo_199',
-    name:'e牙狼 神速神撃3000LT-RB 199ver.',
-    short:'牙狼神速199',
-    kana:'がろしんそく199',tags:['牙狼','がろ','garo','神速','199'],
-    maker:'サンセイR&D', prob:1/199, typeLabel:'ライトミドル',
-    rushRate:0.60, rushContRate:0.76,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:3000,rate:1.0}],
-    hasLT:true,
-    ltRate:0.30,          // RUSH突入時のLTチャレンジ突破率
-    ltContRate:0.76,
-    ltPayouts:[{balls:3000,rate:1.0}],
-    border:17.5, yutai:null,
-    memo:'LT搭載199。RUSH中全当り3000発。LT突入でさらに継続。',
-  },
-  {
-    id:'enren_beni',
-    name:'eF 炎炎ノ消防隊II 紅丸ver.',
-    short:'炎炎紅丸',
-    kana:'えんえんべに',tags:['炎炎','えんえん','消防隊','紅丸','炎炎ノ消防隊'],
-    maker:'平和', prob:1/319, typeLabel:'ミドル',
-    rushRate:0.61, rushContRate:0.77,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.50},{balls:3000,rate:0.50}],
-    hasLT:true, ltRate:0.10, ltContRate:0.80,
-    ltPayouts:[{balls:3000,rate:1.0}],
-    border:17.3, yutai:null,
-    memo:'61%RUSH突入。50%が3000発以上。LT突入で継続率80%。',
-  },
-  // ── ミドル ──────────────────────────────────────────────
-  {
-    id:'rezero_oni319',
-    name:'P Re:ゼロ 鬼がかりver.',
-    short:'リゼロ鬼がかり319',
-    kana:'りぜろおにがかり319',tags:['リゼロ','rezero','鬼がかり','319'],
-    maker:'大都技研', prob:1/319.6, typeLabel:'ミドル',
-    rushRate:0.55, rushContRate:0.77,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.75},{balls:3000,rate:0.25}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.5, yutai:null,
-    memo:'55%RUSH突入。最短0.76秒超高速消化。RUSH中25%で3000発。',
-  },
-  {
-    id:'eva15',
-    name:'P 新世紀エヴァンゲリオン〜未来への咆哮〜 319ver.',
-    short:'エヴァ15 319',
-    kana:'えヴぁ15 319',tags:['エヴァ','eva','エヴァンゲリオン','未来への咆哮','319'],
-    maker:'SANYO', prob:1/319.7, typeLabel:'ミドル',
-    rushRate:0.70, rushContRate:0.81,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:1.0}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.5, yutai:null,
-    memo:'V-ST機。突入率70%・継続率81%。全当り1500発で安定連チャン。',
-  },
-  {
-    id:'tokyo_rev',
-    name:'e 東京リベンジャーズ',
-    short:'東リベ',
-    kana:'とうきょうりべんじゃーず',tags:['東京リベンジャーズ','東リベ','東リベンジャーズ'],
-    maker:'サミー', prob:1/319.7, typeLabel:'ミドル',
-    rushRate:0.61, rushContRate:0.765,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.50},{balls:3000,rate:0.50}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.5, yutai:null,
-    memo:'50%直行+時短引き戻しでトータル61%RUSH。50%が3000発以上。',
-  },
-  {
-    id:'hokuto10',
-    name:'e 北斗の拳10',
-    short:'北斗10',
-    kana:'ほくとのけん10',tags:['北斗','ほくと','北斗の拳','10'],
-    maker:'サミー', prob:1/319, typeLabel:'ミドル',
-    rushRate:0.65, rushContRate:0.78,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.65},{balls:3000,rate:0.35}],
-    hasLT:true, ltRate:0.25, ltContRate:0.84,
-    ltPayouts:[{balls:1500,rate:1.0}],
-    border:17.5, yutai:null,
-    memo:'65%RUSH突入・継続率78%。LT突入で継続率84%にアップ。',
-  },
-  {
-    id:'bluelock',
-    name:'e ブルーロック',
-    short:'ブルーロック',
-    kana:'ぶるーろっく',tags:['ブルーロック','ぶるーろっく','blue lock'],
-    maker:'SANKYO', prob:1/319, typeLabel:'ミドル',
-    rushRate:0.60, rushContRate:0.77,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.60},{balls:3000,rate:0.40}],
-    hasLT:true, ltRate:0.20, ltContRate:0.80,
-    ltPayouts:[{balls:3000,rate:1.0}],
-    border:17.3, yutai:null,
-    memo:'人気コンテンツ初パチンコ化。60%RUSH+LT搭載。',
-  },
-  {
-    id:'madomagi3',
-    name:'P 魔法少女まどか☆マギカ3',
-    short:'まどマギ3',
-    kana:'まどかまぎか3',tags:['まどか','まどマギ','魔法少女','マギカ','3'],
-    maker:'平和', prob:1/319, typeLabel:'ミドル',
-    rushRate:0.61, rushContRate:0.77,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:0.50},{balls:3000,rate:0.50}],
-    hasLT:true, ltRate:0.15, ltContRate:0.80,
-    ltPayouts:[{balls:3000,rate:1.0}],
-    border:17.5, yutai:null,
-    memo:'時短引き戻し込みトータル61%RUSH。50%が3000発以上。',
-  },
-  // ── ハイミドル・MAX ──────────────────────────────────────
-  {
-    id:'garo12',
-    name:'e 牙狼XII 黄金騎士極限',
-    short:'牙狼12',
-    kana:'がろ12',tags:['牙狼','がろ','garo','12','黄金','極限'],
-    maker:'サンセイR&D', prob:1/349, typeLabel:'ハイミドル',
-    rushRate:0.60,         // BATTLE BONUS→50%で極限7500バトルへ
-    rushContRate:0.76,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    // ST中出玉：50%が7500（1500×5）、50%が1500
-    rushPayouts:[{balls:1500,rate:0.50},{balls:7500,rate:0.50}],
-    hasLT:true,
-    ltRate:0.50,           // 極限7500バトル勝利率
-    ltContRate:0.76,
-    ltPayouts:[{balls:1500,rate:0.25},{balls:7500,rate:0.75}],
-    border:17.3, yutai:null,
-    memo:'全初当り1500発→50%で7500バトル→勝利でLT。一撃爆発力最強クラス。',
-  },
-  {
-    id:'tokyoghoul',
-    name:'e 東京喰種',
-    short:'東京喰種',
-    kana:'とうきょうぐーる',tags:['東京喰種','とうきょうぐーる','グール'],
-    maker:'SPIKY', prob:1/399.9, typeLabel:'ハイミドル',
-    rushRate:0.51,         // RUSH=LT直撃
-    rushContRate:0.75,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:3000,rate:0.80},{balls:6000,rate:0.20}],
-    hasLT:true,
-    ltRate:1.0,            // RUSH突入=LT
-    ltContRate:0.75,
-    ltPayouts:[{balls:3000,rate:0.80},{balls:6000,rate:0.20}],
-    border:17.0, yutai:null,
-    memo:'RUSH=LT直結。ALL3000発以上。一部6000発。ハイミドル最強出玉。',
-  },
-  {
-    id:'karakuri2',
-    name:'eF フィーバーからくりサーカス2 魔王ver.',
-    short:'からくりサーカス2',
-    kana:'からくりさーかす2',tags:['からくりサーカス','からさー','からくり','サーカス','魔王','2'],
-    maker:'SANKYO', prob:1/399.9, typeLabel:'ハイミドル',
-    rushRate:0.52,         // LT直撃型
-    rushContRate:0.80,
-    normalPayouts:[{balls:300,rate:1.0}],  // チャージ当り300発のみ
-    rushPayouts:[{balls:3000,rate:0.70},{balls:6000,rate:0.30}],
-    hasLT:true, ltRate:1.0,
-    ltContRate:0.80,
-    ltPayouts:[{balls:3000,rate:0.70},{balls:6000,rate:0.30}],
-    border:17.0, yutai:null,
-    memo:'実質MAX直LT。継続率80%。3000発以上が7割。コンプリートも現実的。',
-  },
-  {
-    id:'unicorn2',
-    name:'eF 機動戦士ガンダムユニコーン 再来',
-    short:'ユニコーン2（再来）',
-    kana:'がんだむゆにこーんさいらい',tags:['ガンダム','ユニコーン','gundam','unicorn','再来'],
-    maker:'SANKYO', prob:1/299, typeLabel:'ライトハイミドル',
-    rushRate:0.72,
-    rushContRate:0.72,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:3000,rate:0.80},{balls:1500,rate:0.20}],
-    hasLT:true, ltRate:0.30, ltContRate:0.85,
-    ltPayouts:[{balls:3000,rate:1.0}],
-    border:17.0, yutai:null,
-    memo:'デカヘソ搭載。RUSH中80%が3000発。LT突入で継続率85%。',
-  },
-  {
-    id:'umi_okinawa6',
-    name:'P 海物語IN沖縄6',
-    short:'沖縄6',
-    kana:'うみものがたりおきなわ6',tags:['海物語','うみものがたり','沖縄','海','umi','6'],
-    maker:'SANYO', prob:1/319, typeLabel:'ミドル',
-    rushRate:0.55, rushContRate:0.80,
-    normalPayouts:[{balls:1500,rate:1.0}],
-    rushPayouts:[{balls:1500,rate:1.0}],
-    hasLT:false, ltRate:0, ltContRate:0, ltPayouts:[],
-    border:17.3, yutai:950,
-    memo:'確変ループ機。遊タイム950回搭載。安定した連チャン性能。',
-  },
+  // ─── 甘デジ（〜99） ────────────────────────────────────
+  {id:'rezero99',name:'P Re:ゼロ 鬼がかり 99ver.',short:'リゼロ99',
+   kana:'りぜろ99',tags:['リゼロ','99'],
+   maker:'大都技研',prob:1/99.9,typeLabel:'甘デジ',
+   rushRate:0.50,rushContRate:0.73,
+   normalPayouts:[{b:900,r:1}],
+   rushPayouts:[{b:900,r:0.75},{b:1800,r:0.25}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:18.0,
+   memo:'最軽量。残り少ない投資での捲りに。出玉控えめ。'},
+  {id:'hanakeijiretsu99',name:'PA花の慶次 裂 99ver.',short:'花慶裂99',
+   kana:'はなのけいじさけ99',tags:['花慶','慶次','99','裂'],
+   maker:'藤商事',prob:1/99.9,typeLabel:'甘デジ',
+   rushRate:0.65,rushContRate:0.75,
+   normalPayouts:[{b:1000,r:1}],
+   rushPayouts:[{b:1000,r:0.60},{b:2000,r:0.40}],
+   hasLT:true,ltRate:0.20,ltContRate:0.80,ltPayouts:[{b:2000,r:1}],
+   border:17.8,
+   memo:'甘デジでLT搭載。65%RUSH突入でコスパ良好。'},
+  {id:'hanaokeijiretsu99b',name:'PA花の慶次 裂 蓮極129ver.',short:'花慶裂蓮極129',
+   kana:'はなのけいじさけれんごく129',tags:['花慶','慶次','129','蓮極'],
+   maker:'藤商事',prob:1/129,typeLabel:'ライト',
+   rushRate:0.65,rushContRate:0.77,
+   normalPayouts:[{b:1200,r:1}],
+   rushPayouts:[{b:1200,r:0.50},{b:2400,r:0.50}],
+   hasLT:true,ltRate:0.25,ltContRate:0.82,ltPayouts:[{b:2400,r:1}],
+   border:17.5,
+   memo:'129でLT搭載。50%が2400発以上で爆発力あり。'},
+  {id:'lupin99',name:'Pルパン三世 THE FIRST 99ver.',short:'ルパン3世99',
+   kana:'るぱんさんせい99',tags:['ルパン','99'],
+   maker:'平和',prob:1/99,typeLabel:'甘デジ',
+   rushRate:0.60,rushContRate:0.72,
+   normalPayouts:[{b:900,r:1}],
+   rushPayouts:[{b:900,r:0.65},{b:1800,r:0.35}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:18.2,
+   memo:'軽量で遊びやすい。RUSH中35%で1800発の上振れ狙い。'},
+  // ─── ライト（129） ──────────────────────────────────────
+  {id:'biohazard129',name:'Pバイオハザード RE:2 LTver. 129ver.',short:'バイオRE:2 129',
+   kana:'ばいおはざーどれー2 129',tags:['バイオ','バイオハザード','RE:2','129'],
+   maker:'サミー',prob:1/129,typeLabel:'ライト',
+   rushRate:0.62,rushContRate:0.76,
+   normalPayouts:[{b:1200,r:1}],
+   rushPayouts:[{b:1200,r:0.55},{b:2400,r:0.45}],
+   hasLT:true,ltRate:0.30,ltContRate:0.82,ltPayouts:[{b:2400,r:0.50},{b:4800,r:0.50}],
+   border:17.3,
+   memo:'LT搭載129。LT突入で4800発の大当り搭載。爆発力あり。'},
+  {id:'blacklagoon4_129',name:'Pブラックラグーン4 EXTRA BULLET 129ver.',short:'黒ラグ4 129',
+   kana:'ぶらっくらぐーん4 129',tags:['ブラックラグーン','黒ラグ','129'],
+   maker:'サミー',prob:1/129,typeLabel:'ライト',
+   rushRate:0.65,rushContRate:0.78,
+   normalPayouts:[{b:1200,r:1}],
+   rushPayouts:[{b:1200,r:0.60},{b:3000,r:0.30},{b:4500,r:0.10}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.2,
+   memo:'65%RUSH。RUSH中に3000〜4500発の大当りあり。'},
+  {id:'toaru2_light',name:'Pとある魔術の禁書目録2 Light PREMIUM 2000ver.',short:'とある2 甘デジ',
+   kana:'とあるまじゅつのきんしょもくろく2らいと',tags:['とある','インデックス','禁書目録','Light','甘','2000'],
+   maker:'藤商事',prob:1/199.8,typeLabel:'ライトミドル',
+   rushRate:0.50,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:0.50},{b:2000,r:0.50}],
+   rushPayouts:[{b:1500,r:0.60},{b:2000,r:0.40}],
+   hasLT:true,ltRate:0.15,ltContRate:0.85,ltPayouts:[{b:2000,r:1}],
+   border:17.5,
+   memo:'甘デジ版とある2。LT搭載で意外な爆発力あり。'},
+  {id:'eva15_129',name:'P新世紀エヴァンゲリオン〜未来への咆哮〜 PREMIUM 129ver.',short:'エヴァ15 129',
+   kana:'えヴぁんげりおん129',tags:['エヴァ','エヴァンゲリオン','129'],
+   maker:'SANYO',prob:1/129.8,typeLabel:'ライト',
+   rushRate:0.75,rushContRate:0.81,
+   normalPayouts:[{b:1500,r:1}],rushPayouts:[{b:1500,r:1}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.4,
+   memo:'V-ST機。突入率75%・継続率81%。全当り1500発で安定。'},
+  {id:'touken129',name:'P刀剣乱舞 -廻- Light Ver.',short:'刀剣乱舞Light',
+   kana:'とうけんらんぶ129',tags:['刀剣乱舞','とうけん','刀剣'],
+   maker:'平和',prob:1/129,typeLabel:'ライト',
+   rushRate:0.63,rushContRate:0.77,
+   normalPayouts:[{b:1200,r:1}],
+   rushPayouts:[{b:1200,r:0.60},{b:2400,r:0.40}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'刀剣乱舞の初パチンコ化。63%RUSH突入。'},
+  // ─── ライトミドル（199） ─────────────────────────────────
+  {id:'rezero199',name:'P Re:ゼロ 鬼がかり 199ver.',short:'リゼロ199',
+   kana:'りぜろ199',tags:['リゼロ','199'],
+   maker:'大都技研',prob:1/199.8,typeLabel:'ライトミドル',
+   rushRate:0.55,rushContRate:0.75,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.60},{b:3000,r:0.40}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'55%RUSH突入。RUSH中40%で3000発の大波狙い。'},
+  {id:'garo199',name:'e牙狼 神速神撃3000LT-RB 199ver.',short:'牙狼神速199',
+   kana:'がろしんそく199',tags:['牙狼','がろ','199'],
+   maker:'サンセイR&D',prob:1/199,typeLabel:'ライトミドル',
+   rushRate:0.60,rushContRate:0.76,
+   normalPayouts:[{b:1500,r:1}],rushPayouts:[{b:3000,r:1}],
+   hasLT:true,ltRate:0.30,ltContRate:0.76,ltPayouts:[{b:3000,r:1}],
+   border:17.5,
+   memo:'LT搭載199。RUSH中全当り3000発。'},
+  {id:'toloveru199',name:'P ToLOVEるダークネス 199ver.',short:'ToLOVEる199',
+   kana:'とらぶる199',tags:['ToLOVEる','とらぶる','ダークネス','199'],
+   maker:'マルホン',prob:1/199,typeLabel:'ライトミドル',
+   rushRate:0.60,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.55},{b:3000,r:0.45}],
+   hasLT:true,ltRate:0.20,ltContRate:0.82,ltPayouts:[{b:3000,r:1}],
+   border:17.3,
+   memo:'60%RUSH突入。RUSH中45%が3000発。LT搭載。'},
+  {id:'bandori',name:'Pバンドリ！ Light ver.',short:'バンドリLight',
+   kana:'ばんどり',tags:['バンドリ','Light','199'],
+   maker:'平和',prob:1/199,typeLabel:'ライトミドル',
+   rushRate:0.65,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.60},{b:3000,r:0.40}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.3,
+   memo:'65%RUSH突入。199でバランスの良いスペック。'},
+  // ─── ミドル（319） ──────────────────────────────────────
+  {id:'toaru2',name:'Pとある魔術の禁書目録2',short:'とある2',
+   kana:'とあるまじゅつのきんしょもくろく2',tags:['とある','インデックス','禁書目録','2','319'],
+   maker:'藤商事',prob:1/319.6,typeLabel:'ミドル',
+   rushRate:0.70,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:0.80},{b:3000,r:0.20}],
+   rushPayouts:[{b:1500,r:0.80},{b:3000,r:0.20}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'70%RUSH突入。RUSH中20%が3000発。ロングST144回。'},
+  {id:'blacklagoon4',name:'Pブラックラグーン4',short:'黒ラグ4',
+   kana:'ぶらっくらぐーん4',tags:['ブラックラグーン','黒ラグ','319'],
+   maker:'サミー',prob:1/319.7,typeLabel:'ミドル',
+   rushRate:0.65,rushContRate:0.81,
+   normalPayouts:[{b:1500,r:0.80},{b:3000,r:0.20}],
+   rushPayouts:[{b:1500,r:0.60},{b:3000,r:0.24},{b:4500,r:0.10},{b:6000,r:0.06}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.1,
+   memo:'65%RUSH・継続率81%。最大出玉9000発（1500×6）搭載。出玉性能高め。'},
+  {id:'rezero319',name:'P Re:ゼロ 鬼がかりver.',short:'リゼロ319',
+   kana:'りぜろおにがかり319',tags:['リゼロ','319','鬼がかり'],
+   maker:'大都技研',prob:1/319.6,typeLabel:'ミドル',
+   rushRate:0.55,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.75},{b:3000,r:0.25}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'55%RUSH突入。超高速消化。RUSH中25%で3000発。'},
+  {id:'eva15',name:'P新世紀エヴァンゲリオン〜未来への咆哮〜 319ver.',short:'エヴァ15 319',
+   kana:'えヴぁんげりおん319',tags:['エヴァ','エヴァンゲリオン','319'],
+   maker:'SANYO',prob:1/319.7,typeLabel:'ミドル',
+   rushRate:0.70,rushContRate:0.81,
+   normalPayouts:[{b:1500,r:1}],rushPayouts:[{b:1500,r:1}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'V-ST機。突入率70%・継続率81%。全当り1500発で安定連チャン。'},
+  {id:'bluelock',name:'eブルーロック',short:'ブルーロック',
+   kana:'ぶるーろっく',tags:['ブルーロック','319'],
+   maker:'SANKYO',prob:1/319,typeLabel:'ミドル',
+   rushRate:0.60,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.60},{b:3000,r:0.40}],
+   hasLT:true,ltRate:0.20,ltContRate:0.80,ltPayouts:[{b:3000,r:1}],
+   border:17.3,
+   memo:'60%RUSH+LT搭載。40%が3000発以上。'},
+  {id:'tokyo_rev',name:'e東京リベンジャーズ',short:'東リベ',
+   kana:'とうきょうりべんじゃーず',tags:['東京リベンジャーズ','東リベ'],
+   maker:'サミー',prob:1/319.7,typeLabel:'ミドル',
+   rushRate:0.61,rushContRate:0.765,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.50},{b:3000,r:0.50}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.5,
+   memo:'61%RUSH突入。50%が3000発以上。'},
+  {id:'madomagi3',name:'P魔法少女まどか☆マギカ3',short:'まどマギ3',
+   kana:'まどかまぎか3',tags:['まどか','まどマギ','マギカ','3'],
+   maker:'平和',prob:1/319,typeLabel:'ミドル',
+   rushRate:0.61,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.50},{b:3000,r:0.50}],
+   hasLT:true,ltRate:0.15,ltContRate:0.80,ltPayouts:[{b:3000,r:1}],
+   border:17.5,
+   memo:'61%RUSH突入。50%が3000発以上。LT搭載。'},
+  {id:'hokuto10',name:'e北斗の拳10',short:'北斗10',
+   kana:'ほくとのけん10',tags:['北斗','北斗の拳','10'],
+   maker:'サミー',prob:1/319,typeLabel:'ミドル',
+   rushRate:0.65,rushContRate:0.78,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.65},{b:3000,r:0.35}],
+   hasLT:true,ltRate:0.25,ltContRate:0.84,ltPayouts:[{b:1500,r:1}],
+   border:17.5,
+   memo:'65%RUSH突入・継続率78%。LT突入で継続率84%。'},
+  {id:'umi6',name:'P海物語IN沖縄6',short:'沖縄6',
+   kana:'うみものがたりおきなわ6',tags:['海物語','沖縄','海'],
+   maker:'SANYO',prob:1/319,typeLabel:'ミドル',
+   rushRate:0.55,rushContRate:0.80,
+   normalPayouts:[{b:1500,r:1}],rushPayouts:[{b:1500,r:1}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:17.3,
+   memo:'確変ループ機。遊タイム950回搭載。安定連チャン。'},
+  {id:'fairytail',name:'P FAIRY TAIL 89Ver.',short:'フェアリーテイル',
+   kana:'ふぇありーている',tags:['FAIRY TAIL','フェアリーテイル','フェアリー'],
+   maker:'サンセイR&D',prob:1/319,typeLabel:'ミドル',
+   rushRate:0.66,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.55},{b:3000,r:0.45}],
+   hasLT:true,ltRate:0.20,ltContRate:0.82,ltPayouts:[{b:3000,r:1}],
+   border:17.3,
+   memo:'66%RUSH突入。45%が3000発以上。LT搭載。'},
+  {id:'ikkitousen_light',name:'P真・一騎当千 Light Ver.',short:'一騎当千Light',
+   kana:'いっきとうせんらいと',tags:['一騎当千','いっきとうせん','Light'],
+   maker:'西陣',prob:1/199,typeLabel:'ライトミドル',
+   rushRate:0.65,rushContRate:0.77,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.55},{b:3000,r:0.45}],
+   hasLT:true,ltRate:0.20,ltContRate:0.82,ltPayouts:[{b:3000,r:1}],
+   border:17.3,
+   memo:'Light版一騎当千。65%RUSH突入。LT搭載。'},
+  // ─── ハイミドル（349〜499） ──────────────────────────────
+  {id:'garo12',name:'e牙狼XII 黄金騎士極限',short:'牙狼12',
+   kana:'がろ12',tags:['牙狼','がろ','12','黄金'],
+   maker:'サンセイR&D',prob:1/349,typeLabel:'ハイミドル',
+   rushRate:0.60,rushContRate:0.76,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:1500,r:0.50},{b:7500,r:0.50}],
+   hasLT:true,ltRate:0.50,ltContRate:0.76,
+   ltPayouts:[{b:1500,r:0.25},{b:7500,r:0.75}],
+   border:17.3,
+   memo:'全初当り1500発→50%で7500バトル→勝利でLT。一撃最強クラス。'},
+  {id:'tokyoghoul',name:'e東京喰種',short:'東京喰種',
+   kana:'とうきょうぐーる',tags:['東京喰種','グール'],
+   maker:'SPIKY',prob:1/399.9,typeLabel:'ハイミドル',
+   rushRate:0.51,rushContRate:0.75,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:3000,r:0.80},{b:6000,r:0.20}],
+   hasLT:true,ltRate:1.0,ltContRate:0.75,
+   ltPayouts:[{b:3000,r:0.80},{b:6000,r:0.20}],
+   border:17.0,
+   memo:'RUSH=LT直結。ALL3000発以上。一部6000発。出玉最強クラス。'},
+  {id:'karakuri2',name:'eFフィーバーからくりサーカス2 魔王ver.',short:'からくりサーカス2',
+   kana:'からくりさーかす2',tags:['からくりサーカス','からさー','魔王'],
+   maker:'SANKYO',prob:1/399.9,typeLabel:'ハイミドル',
+   rushRate:0.52,rushContRate:0.80,
+   normalPayouts:[{b:300,r:1}],
+   rushPayouts:[{b:3000,r:0.70},{b:6000,r:0.30}],
+   hasLT:true,ltRate:1.0,ltContRate:0.80,
+   ltPayouts:[{b:3000,r:0.70},{b:6000,r:0.30}],
+   border:17.0,
+   memo:'実質MAX直LT。継続率80%。3000発以上が7割。コンプリートも現実的。'},
+  {id:'devil_baki',name:'e範馬刃牙',short:'範馬刃牙',
+   kana:'はんまばき',tags:['刃牙','バキ','はんまばき'],
+   maker:'SANKYO',prob:1/499.9,typeLabel:'超ハイミドル',
+   rushRate:0.50,rushContRate:0.82,
+   normalPayouts:[{b:1500,r:1}],
+   rushPayouts:[{b:3000,r:0.80},{b:3000,r:0.20}],
+   hasLT:false,ltRate:0,ltContRate:0,ltPayouts:[],
+   border:16.5,
+   memo:'1/499の超ハイミドル。RUSH中80%が3000発。当たれば爆発力最高峰。'},
 ];
 
 // 換金率
 const EXCHANGES=[
-  {key:'touka', label:'等価（4円/玉）',      yen:4.0},
-  {key:'28',    label:'28玉交換（3.57円）',   yen:3.57},
-  {key:'30',    label:'30玉交換（3.33円）',   yen:3.33},
-  {key:'33',    label:'33玉交換（3.03円）',   yen:3.03},
+  {key:'touka',label:'等価（4円/玉）',      yen:4.0},
+  {key:'28',   label:'28玉交換（3.57円）',   yen:3.57},
+  {key:'30',   label:'30玉交換（3.33円）',   yen:3.33},
+  {key:'33',   label:'33玉交換（3.03円）',   yen:3.03},
 ];
 
 // ═══════════════════════════════════════════════════════════
-// モンテカルロ シミュレーションエンジン
+// シミュレーションエンジン（正しいパチンコモデル）
+//
+// 前提:
+// ① 通常時: 投資額から計算した「総回転数」だけを消化
+//    出玉は通常回転に使わない（右打ち中は別管理）
+// ② 初当り→RUSH突入→連チャン出玉を積み上げ→RUSH終了後また通常に戻る
+// ③ 最終収支 = 全獲得出玉 × 換金率 - 投資額
 // ═══════════════════════════════════════════════════════════
 
-// 重み付きランダム選択
-function weightedRandom(items){
-  const r=Math.random();
-  let cum=0;
-  for(const {balls,rate} of items){
-    cum+=rate;
-    if(r<=cum) return balls;
-  }
-  return items[items.length-1].balls;
+function wRand(payouts){ // 重み付きランダム
+  let r=Math.random(),c=0;
+  for(const p of payouts){c+=p.r; if(r<=c) return p.b;}
+  return payouts[payouts.length-1].b;
 }
 
-// ─────────────────────────────────────────────────────────
-// 1試行の設計（正しいパチンコモデル）
-//
-// 【重要な前提】
-// ① 通常時: 投資額(yen)を1000円ずつ消化。出玉は通常回転に使わない。
-//    （現実: 出玉は右打ちSTで獲得→交換→手元に残る）
-// ② 大当り出玉 + RUSH連チャン出玉 を積み上げる
-// ③ RUSH終了後は残り投資額で通常回転を続ける
-// ④ 最終収支 = 全獲得出玉 × 換金率(yen/玉) - 投資額
-//
-// 【シミュレーションが表すこと】
-// 「この投資額を全部使い切ったとき、どんな収支になるか」
-// ・当たれば: 出玉獲得→RUSH突入すれば連チャン→また通常に戻り残額消化
-// ・1回も当たらなければ: 出玉ゼロ → 投資額が全損
-// ─────────────────────────────────────────────────────────
 function oneTrial(m, rotRate, budget, exchangeYen){
-  // 通常時の総回転数（投資額から計算、出玉で増えない）
-  let remainRots = Math.floor(budget / 1000 * rotRate);
+  let remainRots = Math.floor(budget / 1000 * rotRate); // 総回転数
+  let totalBalls = 0, rushChains=0, ltChains=0;
+  const log=[];
 
-  let totalBalls = 0;   // 獲得出玉の合計（換金対象）
-  let rushChains = 0;
-  let ltChains   = 0;
-  let ballLog    = [];
+  while(remainRots>0){
+    // 次の初当りまでの回転数（幾何分布）
+    let rots=0;
+    while(true){rots++; if(Math.random()<m.prob) break;}
+    if(rots>remainRots){remainRots=0; break;}
+    remainRots-=rots;
 
-  // ── 通常時ループ ──────────────────────────────────────
-  while(remainRots > 0){
-    // 次の大当りまでの回転数（幾何分布）
-    // 1回転ずつ判定すると遅いのでまとめてサンプリング
-    let rots = 0;
-    while(true){
-      rots++;
-      if(Math.random() < m.prob) break;
-    }
-
-    if(rots > remainRots){
-      remainRots = 0;
-      break; // 残り回転数内に当たらなかった
-    }
-    remainRots -= rots;
-
-    // ── 初当り ────────────────────────────────────────
-    const initBalls = weightedRandom(m.normalPayouts);
-    totalBalls += initBalls;
-    ballLog.push({type:'初当り', balls:initBalls});
+    // 初当り出玉
+    const nb=wRand(m.normalPayouts);
+    totalBalls+=nb;
+    log.push({type:'初当り',balls:nb});
 
     // RUSH突入判定
-    if(Math.random() >= m.rushRate) continue; // 非突入→通常に戻る
+    if(Math.random()>=m.rushRate) continue;
 
-    // ── ST/RUSHループ ──────────────────────────────────
-    // ※ RUSH中は出玉を積み上げるだけ（右打ち消費は出玉から相殺済みとする）
-    let inLT = m.hasLT && (Math.random() < m.ltRate);
-
+    // RUSH/LTループ
+    let inLT=m.hasLT&&(Math.random()<m.ltRate);
     while(true){
-      const contRate = inLT ? m.ltContRate : m.rushContRate;
-      const payouts  = (inLT && m.ltPayouts.length) ? m.ltPayouts : m.rushPayouts;
-      const b = weightedRandom(payouts.length ? payouts : [{balls:1500,rate:1}]);
-
-      totalBalls += b;
-      rushChains++;
+      const cr=inLT?m.ltContRate:m.rushContRate;
+      const pay=(inLT&&m.ltPayouts.length)?m.ltPayouts:m.rushPayouts;
+      const b=wRand(pay);
+      totalBalls+=b; rushChains++;
       if(inLT) ltChains++;
-      ballLog.push({type: inLT?'LT':'ST', balls:b});
-
-      if(totalBalls >= 95000){
-        // コンプリート上限: 強制終了
-        return {totalBalls, rushChains, ltChains, ballLog,
-          diffYen: Math.round(totalBalls * exchangeYen - budget)};
-      }
-
-      if(Math.random() >= contRate) break; // 非継続→RUSH終了
-
-      // LT昇格チャンス
-      if(m.hasLT && !inLT && Math.random() < m.ltRate) inLT = true;
+      log.push({type:inLT?'LT':'ST',balls:b});
+      if(totalBalls>=95000) return {totalBalls,rushChains,ltChains,log,
+        diffYen:Math.round(95000*exchangeYen-budget)};
+      if(Math.random()>=cr) break;
+      if(m.hasLT&&!inLT&&Math.random()<m.ltRate) inLT=true;
     }
-    // RUSH終了後は通常時に戻り、残り回転数を消化
   }
-
-  const diffYen = Math.round(totalBalls * exchangeYen - budget);
-  return {totalBalls, rushChains, ltChains, ballLog, diffYen};
+  return {totalBalls,rushChains,ltChains,log,
+    diffYen:Math.round(totalBalls*exchangeYen-budget)};
 }
 
-// メインシミュレーション（10,000試行）
-function simulate(m, budget, rotRate, exchangeYen, N=10000){
-  const results=[];
-
-  for(let i=0;i<N;i++){
-    const t = oneTrial(m, rotRate, budget, exchangeYen);
-    results.push(t);
-  }
-
-  results.sort((a,b)=>a.diffYen-b.diffYen);
-  const n=results.length;
-  const pct=p=>results[Math.floor(n*p)].diffYen;
-  const mean=results.reduce((s,r)=>s+r.diffYen,0)/n;
-
-  // 出玉パターン集計（プラス試行のみ）
-  const plusResults = results.filter(r=>r.diffYen>0);
-  const avgRush = plusResults.length>0
-    ? plusResults.reduce((s,r)=>s+r.rushChains,0)/plusResults.length : 0;
-  const avgLT   = plusResults.length>0
-    ? plusResults.reduce((s,r)=>s+r.ltChains,0)/plusResults.length   : 0;
-
-  // 出玉帯の集計（7500発、3000発、1500発など）
-  const ballBands = {};
-  for(const r of plusResults.slice(0,Math.min(1000,plusResults.length))){
-    for(const entry of r.ballLog){
-      const k = entry.balls>=6000?'6000↑':entry.balls>=3000?'3000':entry.balls>=1500?'1500':entry.balls>=900?'900':'その他';
-      ballBands[k]=(ballBands[k]||0)+1;
-    }
-  }
-
-  return {
-    pct5:pct(0.05), pct25:pct(0.25), median:pct(0.50),
-    pct75:pct(0.75), pct90:pct(0.90), pct95:pct(0.95),
+function simulate(m, budget, rotRate, exYen, N=10000){
+  const R=[];
+  for(let i=0;i<N;i++) R.push(oneTrial(m,rotRate,budget,exYen));
+  R.sort((a,b)=>a.diffYen-b.diffYen);
+  const n=R.length;
+  const p=q=>R[Math.floor(n*q)].diffYen;
+  const mean=R.reduce((s,r)=>s+r.diffYen,0)/n;
+  const plus=R.filter(r=>r.diffYen>0);
+  return{
+    pct5:p(.05),pct25:p(.25),median:p(.50),pct75:p(.75),pct90:p(.90),pct95:p(.95),
     mean:Math.round(mean),
-    probPlus: results.filter(r=>r.diffYen>0).length/n,
-    probLoss50: results.filter(r=>r.diffYen<=-budget*0.5).length/n,
-    probLossAll: results.filter(r=>r.diffYen<=-budget*0.99).length/n,
-    prob5k:  results.filter(r=>r.diffYen>=5000).length/n,
-    prob10k: results.filter(r=>r.diffYen>=10000).length/n,
-    prob20k: results.filter(r=>r.diffYen>=20000).length/n,
-    prob50k: results.filter(r=>r.diffYen>=50000).length/n,
-    avgRushChains: Math.round(avgRush*10)/10,
-    avgLTChains:   Math.round(avgLT*10)/10,
-    ballBands,
-    trials:n,
-    // パーセンタイルごとの試行詳細
-    p50detail: results[Math.floor(n*0.50)],
-    p90detail: results[Math.floor(n*0.90)],
+    probPlus:plus.length/n,
+    probLossAll:R.filter(r=>r.diffYen<=-budget*.99).length/n,
+    probLossHalf:R.filter(r=>r.diffYen<=-budget*.5).length/n,
+    prob5k:R.filter(r=>r.diffYen>=5000).length/n,
+    prob10k:R.filter(r=>r.diffYen>=10000).length/n,
+    prob20k:R.filter(r=>r.diffYen>=20000).length/n,
+    prob50k:R.filter(r=>r.diffYen>=50000).length/n,
+    avgChains:plus.length>0?Math.round(plus.reduce((s,r)=>s+r.rushChains,0)/plus.length*10)/10:0,
+    avgLT:plus.length>0?Math.round(plus.reduce((s,r)=>s+r.ltChains,0)/plus.length*10)/10:0,
+    // 典型ケース（中央・90%ile）のログ
+    medianLog:R[Math.floor(n*.50)].log,
+    p90Log:R[Math.floor(n*.90)].log,
+    budget,rotRate,exchangeYen:exYen,trials:n,
   };
 }
 
-// RUSH継続シミュレーション（現在X連→あとどれくらい続くか）
-function simRush(m, currentChain, inLT, N=50000){
-  const results=[];
-  for(let i=0;i<N;i++){
-    let chain=currentChain;
-    let lt=inLT;
-    let balls=0;
-    while(true){
-      const cont=lt?m.ltContRate:m.rushContRate;
-      if(Math.random()>=cont) break;
-      chain++;
-      if(lt) {
-        const b=weightedRandom(m.ltPayouts.length?m.ltPayouts:[{balls:1500,rate:1}]);
-        balls+=b;
-      } else {
-        const b=weightedRandom(m.rushPayouts.length?m.rushPayouts:[{balls:1500,rate:1}]);
-        balls+=b;
-      }
-      if(!lt&&m.hasLT&&Math.random()<m.ltRate) lt=true;
+// 逆算: 全機種ランキング形式
+function simAllForTarget(budget,target,rotRate,exYen,N=5000){
+  return MACHINES.map(m=>{
+    const R=[];
+    for(let i=0;i<N;i++) R.push(oneTrial(m,rotRate,budget,exYen));
+    const need=target-budget;
+    const rate=R.filter(r=>r.diffYen>=need).length/N;
+    const success=R.filter(r=>r.diffYen>=need);
+    const avgC=success.length>0?Math.round(success.reduce((s,r)=>s+r.rushChains,0)/success.length*10)/10:0;
+    const avgLT=success.length>0?Math.round(success.reduce((s,r)=>s+r.ltChains,0)/success.length*10)/10:0;
+    // 達成時の出玉内訳
+    let avg7500=0,avg3000=0,avg1500=0;
+    if(success.length>0){
+      avg7500=Math.round(success.reduce((s,r)=>s+r.log.filter(l=>l.balls>=7500).length,0)/success.length*10)/10;
+      avg3000=Math.round(success.reduce((s,r)=>s+r.log.filter(l=>l.balls>=3000&&l.balls<7500).length,0)/success.length*10)/10;
+      avg1500=Math.round(success.reduce((s,r)=>s+r.log.filter(l=>l.balls>=1500&&l.balls<3000).length,0)/success.length*10)/10;
     }
-    results.push({chain,balls});
+    return{m,rate,avgChains:avgC,avgLT,avg7500,avg3000,avg1500,successN:success.length};
+  }).sort((a,b)=>b.rate-a.rate);
+}
+
+// RUSH継続シミュレーション
+function simRush(m,current,inLT,N=50000){
+  const R=[];
+  for(let i=0;i<N;i++){
+    let chain=current,lt=inLT,balls=0;
+    while(true){
+      const cr=lt?m.ltContRate:m.rushContRate;
+      if(Math.random()>=cr) break;
+      chain++;
+      const pay=(lt&&m.ltPayouts.length)?m.ltPayouts:m.rushPayouts;
+      balls+=wRand(pay);
+      if(m.hasLT&&!lt&&Math.random()<m.ltRate) lt=true;
+    }
+    R.push({chain,balls});
   }
-  results.sort((a,b)=>a.chain-b.chain);
-  const n=results.length;
-  const pct=p=>results[Math.floor(n*p)];
-  return {
-    probCont1: results.filter(r=>r.chain>currentChain).length/n,
-    probCont3: results.filter(r=>r.chain>=currentChain+3).length/n,
-    probCont5: results.filter(r=>r.chain>=currentChain+5).length/n,
-    probCont10:results.filter(r=>r.chain>=currentChain+10).length/n,
-    p50: pct(0.50), p75: pct(0.75), p90: pct(0.90), p95: pct(0.95),
-    trials:n,
+  R.sort((a,b)=>a.chain-b.chain);
+  const n=R.length;
+  const p=q=>R[Math.floor(n*q)];
+  return{
+    probCont1:R.filter(r=>r.chain>current).length/n,
+    probCont3:R.filter(r=>r.chain>=current+3).length/n,
+    probCont5:R.filter(r=>r.chain>=current+5).length/n,
+    probCont10:R.filter(r=>r.chain>=current+10).length/n,
+    p50:p(.50),p75:p(.75),p90:p(.90),p95:p(.95),
   };
 }
 
-// 逆算シミュレーション（X円→Y円以上にするには）
-function simReverse(m, budget, target, rotRate, exchangeYen, N=10000){
-  const targetDiffYen=target-budget; // 必要な収支差（目標到達に必要なプラス分）
-  const successResults=[];
-
-  for(let i=0;i<N;i++){
-    const t=oneTrial(m,rotRate,budget,exchangeYen);
-    // oneTrial内でdiffYen（収支差額）を計算済み
-    if(t.diffYen>=targetDiffYen) successResults.push(t);
-  }
-
-  const rate=successResults.length/N;
-
-  // 達成試行のパターン分析
-  const patterns=[];
-  if(successResults.length>0){
-    // 7500発以上の当り数
-    const avg7500=successResults.reduce((s,r)=>
-      s+r.ballLog.filter(b=>b.balls>=7500).length,0)/successResults.length;
-    const avg6000=successResults.reduce((s,r)=>
-      s+r.ballLog.filter(b=>b.balls>=6000&&b.balls<7500).length,0)/successResults.length;
-    const avg3000=successResults.reduce((s,r)=>
-      s+r.ballLog.filter(b=>b.balls>=3000&&b.balls<6000).length,0)/successResults.length;
-    const avg1500=successResults.reduce((s,r)=>
-      s+r.ballLog.filter(b=>b.balls>=1500&&b.balls<3000).length,0)/successResults.length;
-    const avgChain=successResults.reduce((s,r)=>s+r.rushChains,0)/successResults.length;
-    const avgLT=successResults.reduce((s,r)=>s+r.ltChains,0)/successResults.length;
-    const avgBalls=successResults.reduce((s,r)=>s+r.totalBalls,0)/successResults.length;
-
-    return {
-      rate, successN:successResults.length,
-      avg7500:Math.round(avg7500*10)/10,
-      avg6000:Math.round(avg6000*10)/10,
-      avg3000:Math.round(avg3000*10)/10,
-      avg1500:Math.round(avg1500*10)/10,
-      avgChain:Math.round(avgChain*10)/10,
-      avgLT:Math.round(avgLT*10)/10,
-      avgBalls:Math.round(avgBalls),
-      trials:N,
-    };
-  }
-  return {rate:0, successN:0, trials:N};
-}
-
 // ═══════════════════════════════════════════════════════════
-// UI ヘルパー
+// UI
 // ═══════════════════════════════════════════════════════════
-const C={
-  bg:'#07071a',surface:'#0e0e28',card:'#131330',
+const C={bg:'#07071a',surface:'#0e0e28',card:'#131330',
   border:'#1e1e42',accent:'#7c3aed',accentL:'#a78bfa',
   gold:'#f59e0b',green:'#10b981',red:'#ef4444',
-  text:'#e8e8f8',muted:'#7070a0',dim:'#1a1a3a',
-};
+  text:'#e8e8f8',muted:'#7070a0',dim:'#1a1a3a'};
 
-const fmtY=v=>{
-  if(v===null||v===undefined) return '—';
-  const s=v>=0?'+':'';
-  const a=Math.abs(v);
+const fy=v=>{
+  if(v==null) return '—';
+  const s=v>=0?'+':''; const a=Math.abs(v);
   return a>=10000?`${s}${(v/10000).toFixed(1)}万円`:`${s}${v.toLocaleString()}円`;
 };
-const pct=v=>`${Math.round(v*100)}%`;
-const fmtB=v=>`${v.toLocaleString()}発`;
+const fp=v=>`${Math.round(v*100)}%`;
+const fb=v=>`${v.toLocaleString()}発`;
 
-function Btn({children,onClick,disabled,color,size='md',full}){
-  const bg=disabled?C.dim:color||C.accent;
-  return(
-    <button onClick={disabled?null:onClick} style={{
-      background:disabled?C.dim:bg,
-      color:disabled?C.muted:'#fff',
-      border:'none',borderRadius:10,cursor:disabled?'not-allowed':'pointer',
-      fontFamily:'inherit',fontWeight:700,opacity:disabled?0.5:1,
-      padding:size==='sm'?'7px 14px':size==='lg'?'15px 20px':'10px 16px',
-      fontSize:size==='sm'?12:size==='lg'?16:14,
-      width:full?'100%':'auto',
-      boxShadow:disabled?'none':`0 3px 14px ${bg}55`,
-    }}>{children}</button>
-  );
+function Btn({ch,onClick,disabled,color,size,full}){
+  const bg=disabled?C.dim:(color||C.accent);
+  const p=size==='sm'?'7px 14px':size==='lg'?'15px 20px':'10px 16px';
+  const fs=size==='sm'?12:size==='lg'?16:14;
+  return<button onClick={disabled?null:onClick} style={{background:bg,color:disabled?C.muted:'#fff',
+    border:'none',borderRadius:10,cursor:disabled?'not-allowed':'pointer',fontFamily:'inherit',
+    fontWeight:700,padding:p,fontSize:fs,width:full?'100%':'auto',
+    boxShadow:disabled?'none':`0 3px 14px ${bg}55`,opacity:disabled?.5:1}}>{ch}</button>;
 }
 
-// 機種検索コンポーネント
-function MachineSearch({value,onSelect,placeholder}){
+function Bar({v,max=1,color,label,sub}){
+  return<div style={{marginBottom:8}}>
+    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+      <span style={{fontSize:12,color:C.muted}}>{label}</span>
+      <span style={{fontSize:13,fontWeight:700,color,fontFamily:'JetBrains Mono,monospace'}}>{sub}</span>
+    </div>
+    <div style={{height:6,background:C.dim,borderRadius:3,overflow:'hidden'}}>
+      <div style={{width:`${Math.min(100,Math.max(0,v/max*100))}%`,height:'100%',background:color,borderRadius:3}}/>
+    </div>
+  </div>;
+}
+
+// 機種検索
+function MSearch({value,onSelect}){
   const [q,setQ]=useState('');
   const [open,setOpen]=useState(false);
-  const ref=useRef();
-
   const hits=useMemo(()=>{
-    const src=q||'';
-    if(!src&&!open) return [];
-    const lq=src.toLowerCase().replace(/[\s　]/g,'');
-    if(!lq) return MACHINES;
+    const lq=(q||'').toLowerCase().replace(/[\s　]/g,'');
+    if(!lq&&!open) return [];
     return MACHINES.filter(m=>{
-      const hay=[m.name,m.short,m.kana,...m.tags].join(' ').toLowerCase().replace(/[\s　]/g,'');
-      return hay.includes(lq);
+      const h=[m.name,m.short,m.kana,...m.tags].join('').toLowerCase().replace(/[\s　]/g,'');
+      return !lq||h.includes(lq);
     });
   },[q,open]);
-
-  const choose=m=>{onSelect(m);setQ('');setOpen(false);};
-
-  const typeLabelColor=t=>
-    t==='甘デジ'?'#10b981':t==='ライト'?'#06b6d4':
-    t==='ライトミドル'?'#6366f1':t==='ミドル'?'#f59e0b':
-    t==='ライトハイミドル'?'#f97316':t==='ハイミドル'?'#ef4444':'#9ca3af';
-
-  return(
+  const tc={甘デジ:'#10b981',ライト:'#06b6d4',ライトミドル:'#6366f1',ミドル:'#f59e0b',
+    ライトハイミドル:'#f97316',ハイミドル:'#ef4444',超ハイミドル:'#dc2626'};
+  return<div style={{position:'relative'}}>
     <div style={{position:'relative'}}>
-      <div style={{position:'relative'}}>
-        <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:18}}>🔍</span>
-        <input value={q} onChange={e=>setQ(e.target.value)}
-          onFocus={()=>setOpen(true)}
-          onBlur={()=>setTimeout(()=>setOpen(false),250)}
-          placeholder={placeholder||'機種名を入力（例: リゼロ、エヴァ、牙狼…）'}
-          style={{width:'100%',background:C.surface,border:`1px solid ${open?C.accent:C.border}`,
-            borderRadius:12,color:C.text,padding:'13px 14px 13px 42px',fontSize:15,
-            outline:'none',boxSizing:'border-box',transition:'border-color .2s'}}/>
-        {value&&!q&&(
-          <div style={{position:'absolute',left:42,top:'50%',transform:'translateY(-50%)',
-            fontSize:14,color:C.accentL,fontWeight:600,pointerEvents:'none',
-            maxWidth:'calc(100% - 60px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-            {value.short}
-          </div>
-        )}
-      </div>
-      {open&&hits.length>0&&(
-        <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,right:0,zIndex:200,
-          background:C.card,border:`1px solid ${C.border}`,borderRadius:14,
-          maxHeight:340,overflowY:'auto',boxShadow:'0 10px 40px rgba(0,0,0,0.7)'}}>
-          {hits.map(m=>{
-            const tc=typeLabelColor(m.typeLabel);
-            return(
-              <div key={m.id} onMouseDown={()=>choose(m)}
-                style={{padding:'12px 16px',cursor:'pointer',borderBottom:`1px solid ${C.border}`,
-                  display:'flex',flexDirection:'column',gap:4}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:10,background:tc+'22',color:tc,borderRadius:4,
-                    padding:'2px 6px',fontWeight:700,flexShrink:0}}>{m.typeLabel}</span>
-                  <span style={{fontSize:13,fontWeight:700,flex:1,lineHeight:1.3}}>{m.name}</span>
-                </div>
-                <div style={{display:'flex',gap:10,fontSize:11,color:C.muted}}>
-                  <span>確率 1/{Math.round(1/m.prob)}</span>
-                  <span>RUSH {Math.round(m.rushRate*100)}%</span>
-                  <span>継続 {Math.round(m.rushContRate*100)}%</span>
-                  {m.hasLT&&<span style={{color:C.accentL}}>LT搭載</span>}
-                </div>
-                <div style={{fontSize:11,color:'#5a5a80'}}>{m.memo}</div>
-              </div>
-            );
-          })}
+      <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:18}}>🔍</span>
+      <input value={q} onChange={e=>setQ(e.target.value)}
+        onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),250)}
+        placeholder="機種名（例: リゼロ、エヴァ、黒ラグ…）"
+        style={{width:'100%',background:C.surface,border:`1px solid ${open?C.accent:C.border}`,
+          borderRadius:12,color:C.text,padding:'13px 14px 13px 42px',fontSize:15,
+          outline:'none',boxSizing:'border-box'}}/>
+      {value&&!q&&<div style={{position:'absolute',left:42,top:'50%',transform:'translateY(-50%)',
+        fontSize:14,color:C.accentL,fontWeight:600,pointerEvents:'none',
+        maxWidth:'calc(100% - 60px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+        {value.short}</div>}
+    </div>
+    {open&&hits.length>0&&<div style={{position:'absolute',top:'calc(100% + 6px)',left:0,right:0,
+      zIndex:200,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,
+      maxHeight:340,overflowY:'auto',boxShadow:'0 10px 40px rgba(0,0,0,0.7)'}}>
+      {hits.map(m=><div key={m.id} onMouseDown={()=>{onSelect(m);setQ('');setOpen(false);}}
+        style={{padding:'11px 16px',cursor:'pointer',borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <span style={{fontSize:10,background:(tc[m.typeLabel]||'#6b6b90')+'22',
+            color:tc[m.typeLabel]||'#6b6b90',borderRadius:4,padding:'2px 6px',fontWeight:700,flexShrink:0}}>
+            {m.typeLabel}</span>
+          <span style={{fontSize:13,fontWeight:700,flex:1,lineHeight:1.3}}>{m.name}</span>
         </div>
-      )}
-    </div>
-  );
-}
-
-// スペックバッジ
-function SpecBadges({m}){
-  const badges=[
-    {label:`1/${Math.round(1/m.prob)}`,sub:'確率'},
-    {label:`${pct(m.rushRate)}`,sub:'RUSH突入'},
-    {label:`${pct(m.rushContRate)}`,sub:'継続率'},
-    ...(m.hasLT?[{label:`LT${pct(m.ltRate)}`,sub:'LT突入',lt:true}]:[]),
-  ];
-  return(
-    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-      {badges.map(b=>(
-        <div key={b.label} style={{background:b.lt?C.accent+'22':C.dim,borderRadius:8,
-          padding:'7px 10px',textAlign:'center',border:`1px solid ${b.lt?C.accent+'44':C.border}`}}>
-          <div style={{fontSize:14,fontWeight:900,color:b.lt?C.accentL:C.text,
-            fontFamily:'JetBrains Mono,monospace'}}>{b.label}</div>
-          <div style={{fontSize:9,color:C.muted,marginTop:2}}>{b.sub}</div>
+        <div style={{display:'flex',gap:10,fontSize:11,color:C.muted,marginTop:3}}>
+          <span>1/{Math.round(1/m.prob)}</span>
+          <span>RUSH {fp(m.rushRate)}</span>
+          <span>継続 {fp(m.rushContRate)}</span>
+          {m.hasLT&&<span style={{color:C.accentL}}>LT搭載</span>}
         </div>
-      ))}
-    </div>
-  );
+        <div style={{fontSize:11,color:'#4a4a70',marginTop:2}}>{m.memo}</div>
+      </div>)}
+    </div>}
+  </div>;
 }
 
-// シンプルな横バー
-function Bar({value,max,color,label,sub}){
-  return(
-    <div style={{marginBottom:6}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4}}>
-        <span style={{fontSize:12,color:C.muted}}>{label}</span>
-        <span style={{fontSize:13,fontWeight:700,color,fontFamily:'JetBrains Mono,monospace'}}>{sub}</span>
+// ログ可視化コンポーネント
+function PlayLog({log,label,budget,exYen}){
+  if(!log||log.length===0) return null;
+  const totalBalls=log.reduce((s,l)=>s+l.balls,0);
+  const earnYen=Math.round(totalBalls*exYen);
+  const diffYen=earnYen-budget;
+  const hits=log.filter(l=>l.type==='初当り').length;
+  const st=log.filter(l=>l.type==='ST').length;
+  const lt=log.filter(l=>l.type==='LT').length;
+  return<div style={{background:'#0e0e28',borderRadius:10,padding:'12px 14px',marginBottom:8}}>
+    <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:8}}>{label}</div>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
+      <div style={{background:C.dim,borderRadius:6,padding:'5px 10px',textAlign:'center'}}>
+        <div style={{fontSize:10,color:C.muted}}>初当り</div>
+        <div style={{fontSize:16,fontWeight:900,fontFamily:'JetBrains Mono,monospace'}}>{hits}回</div>
       </div>
-      <div style={{height:6,background:C.dim,borderRadius:3,overflow:'hidden'}}>
-        <div style={{width:`${Math.min(100,Math.max(0,value/max*100))}%`,
-          height:'100%',background:color,borderRadius:3,transition:'width .5s'}}/>
+      <div style={{background:C.dim,borderRadius:6,padding:'5px 10px',textAlign:'center'}}>
+        <div style={{fontSize:10,color:C.muted}}>ST連</div>
+        <div style={{fontSize:16,fontWeight:900,fontFamily:'JetBrains Mono,monospace',color:C.accentL}}>{st}連</div>
+      </div>
+      {lt>0&&<div style={{background:C.dim,borderRadius:6,padding:'5px 10px',textAlign:'center'}}>
+        <div style={{fontSize:10,color:C.muted}}>LT連</div>
+        <div style={{fontSize:16,fontWeight:900,fontFamily:'JetBrains Mono,monospace',color:C.gold}}>{lt}連</div>
+      </div>}
+      <div style={{background:C.dim,borderRadius:6,padding:'5px 10px',textAlign:'center'}}>
+        <div style={{fontSize:10,color:C.muted}}>総出玉</div>
+        <div style={{fontSize:16,fontWeight:900,fontFamily:'JetBrains Mono,monospace',color:C.green}}>{totalBalls.toLocaleString()}発</div>
+      </div>
+      <div style={{background:diffYen>=0?'#0a1a0a':'#1a0a0a',borderRadius:6,padding:'5px 10px',textAlign:'center',
+        border:`1px solid ${diffYen>=0?C.green:C.red}33`}}>
+        <div style={{fontSize:10,color:C.muted}}>収支</div>
+        <div style={{fontSize:16,fontWeight:900,fontFamily:'JetBrains Mono,monospace',
+          color:diffYen>=0?C.green:C.red}}>{fy(diffYen)}</div>
       </div>
     </div>
-  );
-}
-
-// 数値ハイライトカード
-function NumCard({label,value,color,sub}){
-  return(
-    <div style={{background:C.surface,borderRadius:10,padding:'10px 12px',border:`1px solid ${C.border}`}}>
-      <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{label}</div>
-      <div style={{fontSize:22,fontWeight:900,color:color||C.text,
-        fontFamily:'JetBrains Mono,monospace',lineHeight:1}}>{value}</div>
-      {sub&&<div style={{fontSize:10,color:C.muted,marginTop:3}}>{sub}</div>}
+    {/* 当り履歴タイムライン */}
+    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+      {log.map((l,i)=>{
+        const col=l.type==='LT'?C.gold:l.type==='ST'?C.accentL:'#6b6b90';
+        const bg=l.type==='LT'?C.gold+'22':l.type==='ST'?C.accentL+'22':'#2a2a4a';
+        return<div key={i} style={{background:bg,borderRadius:5,padding:'3px 7px',
+          fontSize:10,fontWeight:600,color:col,border:`1px solid ${col}33`}}>
+          {l.type} {l.balls.toLocaleString()}
+        </div>;
+      })}
     </div>
-  );
+  </div>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// 3つの画面コンポーネント
-// ═══════════════════════════════════════════════════════════
-
-// ── 画面A: 投資シミュレーション ──────────────────────────
+// ── 画面A: 投資分析 ────────────────────────────────────────
 function SimScreen(){
-  const [machine,setMachine]=useState(null);
+  const [m,setM]=useState(null);
   const [budget,setBudget]=useState(10000);
-  const [rotRate,setRotRate]=useState(18);
-  const [exKey,setExKey]=useState('touka');
-  const [result,setResult]=useState(null);
+  const [rot,setRot]=useState(18);
+  const [exK,setExK]=useState('touka');
+  const [res,setRes]=useState(null);
   const [loading,setLoading]=useState(false);
-
-  const ex=EXCHANGES.find(e=>e.key===exKey);
+  const ex=EXCHANGES.find(e=>e.key===exK);
 
   const run=()=>{
-    if(!machine) return;
-    setLoading(true);setResult(null);
+    if(!m) return;
+    setLoading(true);setRes(null);
     requestAnimationFrame(()=>setTimeout(()=>{
-      const r=simulate(machine,budget,rotRate,ex.yen);
-      setResult(r);setLoading(false);
+      setRes(simulate(m,budget,rot,ex.yen));
+      setLoading(false);
     },16));
   };
 
-  return(
-    <div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
-      <div style={{marginBottom:16}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          機種を選択
-        </div>
-        <MachineSearch value={machine} onSelect={m=>{setMachine(m);setResult(null);}}/>
-      </div>
+  const diffLabel=m?(rot>=m.border?`▲ +${(rot-m.border).toFixed(1)}`:`▼ ${(rot-m.border).toFixed(1)}`):null;
 
-      {machine&&(
-        <div style={{background:C.card,borderRadius:12,padding:'12px 14px',
-          border:`1px solid ${C.border}`,marginBottom:16}}>
-          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-            <span style={{fontSize:11,background:'#7c3aed22',color:C.accentL,
-              borderRadius:4,padding:'2px 7px',fontWeight:700}}>{machine.typeLabel}</span>
-            <span style={{fontSize:13,fontWeight:700,lineHeight:1.3}}>{machine.name}</span>
-          </div>
-          <SpecBadges m={machine}/>
-          <div style={{fontSize:11,color:'#5a5a80',marginTop:8}}>{machine.memo}</div>
-        </div>
-      )}
-
-      {/* 投資額 */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          投資額
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-          {[3000,5000,10000,15000,20000,30000,50000].map(v=>(
-            <button key={v} onClick={()=>{setBudget(v);setResult(null);}} style={{
-              padding:'6px 11px',borderRadius:18,border:'none',fontSize:12,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:budget===v?C.accent:C.dim,
-              color:budget===v?'#fff':C.muted}}>
-              ¥{v>=10000?v/10000+'万':v.toLocaleString()}
-            </button>
-          ))}
-        </div>
-        <input type="number" value={budget}
-          onChange={e=>{setBudget(Math.max(500,parseInt(e.target.value)||0));setResult(null);}}
-          style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
-            borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
-            fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
-      </div>
-
-      {/* 実測回転率 */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:4}}>
-          実測回転率（台のデータカウンターで確認）
-        </div>
-        <div style={{fontSize:11,color:'#4a4a70',marginBottom:8}}>
-          ※ データカウンターの「スタート」回数 ÷ 投資額（千円）で計算。ボーダーは {machine?.border||'—'}回/k
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <input type="number" step="0.1" value={rotRate}
-            onChange={e=>{setRotRate(parseFloat(e.target.value)||0);setResult(null);}}
-            style={{flex:1,background:C.surface,border:`1px solid ${
-              machine?(rotRate>=machine.border?C.green:C.red):C.border}`,
-              borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
-              fontFamily:'JetBrains Mono,monospace',outline:'none'}}/>
-          <span style={{fontSize:14,color:C.muted,flexShrink:0}}>回/k</span>
-          {machine&&(
-            <span style={{fontSize:12,fontWeight:700,flexShrink:0,
-              color:rotRate>=machine.border?C.green:C.red}}>
-              {rotRate>=machine.border?`▲ボーダー+${(rotRate-machine.border).toFixed(1)}`:`▼ボーダー${(rotRate-machine.border).toFixed(1)}`}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 換金率 */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          換金率
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {EXCHANGES.map(e=>(
-            <button key={e.key} onClick={()=>{setExKey(e.key);setResult(null);}} style={{
-              padding:'6px 11px',borderRadius:18,border:'none',fontSize:11,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:exKey===e.key?C.accent:C.dim,
-              color:exKey===e.key?'#fff':C.muted}}>
-              {e.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <Btn onClick={run} disabled={!machine||loading} size='lg' full>
-        {loading?'⏳ 計算中（約1秒）…':machine?`${machine.short} をシミュレーション（10,000回試行）`:'機種を選択してください'}
-      </Btn>
-
-      {result&&(
-        <div style={{marginTop:20}}>
-          {/* 前提条件の説明 */}
-          <div style={{background:'#1a1a30',borderRadius:12,padding:'12px 14px',
-            marginBottom:14,border:`1px solid ${C.border}`,fontSize:12,color:C.muted,lineHeight:1.8}}>
-            <div style={{fontWeight:700,color:C.text,marginBottom:4}}>📌 このシミュレーションの前提</div>
-            <div>・ <strong style={{color:C.text}}>{machine.name}</strong> を</div>
-            <div>・ 実測回転率 <strong style={{color:rotRate>=machine.border?C.green:C.red}}>
-              {rotRate}回/k</strong>（ボーダー{machine.border}回/k）の台で</div>
-            <div>・ <strong style={{color:C.gold}}>¥{budget.toLocaleString()}</strong> を全額使い切った場合の収支分布</div>
-            <div>・ 換金率: {ex.label}</div>
-            <div>・ 10,000回試行の統計的参考値</div>
-          </div>
-
-          {/* 主要指標 */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-            <NumCard label="期待収支（平均）" value={fmtY(result.mean)}
-              color={result.mean>=0?C.green:C.red}
-              sub={`${pct(result.probPlus)} がプラス収支`}/>
-            <NumCard label="中央値（最も多い結果）" value={fmtY(result.median)}
-              color={result.median>=0?C.accentL:C.red}
-              sub="全試行の50%がこの前後"/>
-          </div>
-
-          {/* 上振れ・下振れ */}
-          <div style={{background:C.card,borderRadius:12,padding:'14px',
-            marginBottom:14,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:12}}>収支分布（パーセンタイル）</div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>
-              「上位5%の展開」= 100人打ったとき5番目に良い結果のイメージ
-            </div>
-            {[
-              {label:'下振れ（下位5%）',val:result.pct5,pct:'5%',color:C.red,note:'最悪に近い展開'},
-              {label:'やや不運（下位25%）',val:result.pct25,pct:'25%',color:'#f87171',note:''},
-              {label:'中央値（50%）',val:result.median,pct:'50%',color:C.accentL,note:'最もよくある結果'},
-              {label:'やや好運（上位25%）',val:result.pct75,pct:'75%',color:'#6ee7b7',note:''},
-              {label:'好運（上位10%）',val:result.pct90,pct:'90%',color:C.green,note:''},
-              {label:'大当たり展開（上位5%）',val:result.pct95,pct:'95%',color:'#34d399',note:'最高に近い展開'},
-            ].map(row=>(
-              <div key={row.pct} style={{display:'flex',alignItems:'center',
-                padding:'7px 0',borderBottom:`1px solid ${C.dim}`}}>
-                <div style={{flex:1}}>
-                  <span style={{fontSize:12,color:C.muted}}>{row.label}</span>
-                  {row.note&&<span style={{fontSize:10,color:'#3a3a60',marginLeft:6}}>{row.note}</span>}
-                </div>
-                <div style={{fontSize:16,fontWeight:800,color:row.color,
-                  fontFamily:'JetBrains Mono,monospace',minWidth:80,textAlign:'right'}}>
-                  {fmtY(row.val)}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 発生確率 */}
-          <div style={{background:C.card,borderRadius:12,padding:'14px',
-            marginBottom:14,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:12}}>
-              各収支になる確率
-            </div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
-              「プラス5,000円以上」= 投資額{budget.toLocaleString()}円以上に収支がなる確率
-            </div>
-            <Bar value={result.probPlus} max={1} color={C.accentL}
-              label="プラス収支になる確率" sub={pct(result.probPlus)}/>
-            <Bar value={result.prob5k} max={1} color='#6ee7b7'
-              label={`収支 +5,000円以上`} sub={pct(result.prob5k)}/>
-            <Bar value={result.prob10k} max={1} color={C.green}
-              label={`収支 +10,000円以上`} sub={pct(result.prob10k)}/>
-            <Bar value={result.prob20k} max={1} color='#34d399'
-              label={`収支 +20,000円以上`} sub={pct(result.prob20k)}/>
-            <Bar value={result.prob50k} max={1} color={C.gold}
-              label={`収支 +50,000円以上`} sub={pct(result.prob50k)}/>
-            <div style={{marginTop:12,borderTop:`1px solid ${C.dim}`,paddingTop:10}}>
-              <Bar value={result.probLoss50} max={1} color='#f87171'
-                label={`投資額の50%以上（${fmtY(-budget/2)} 以上）溶ける確率`} sub={pct(result.probLoss50)}/>
-              <Bar value={result.probLossAll} max={1} color={C.red}
-                label={`全額（${budget.toLocaleString()}円）溶ける確率`} sub={pct(result.probLossAll)}/>
-            </div>
-            <div style={{fontSize:11,color:'#3a3a60',marginTop:8,lineHeight:1.6}}>
-              ※「全額溶ける」= ¥{budget.toLocaleString()}を全部使い切り、かつ出玉ゼロで終わる展開
-            </div>
-          </div>
-
-          {/* プラス試行時のパターン */}
-          {result.avgRushChains>0&&(
-            <div style={{background:C.card,borderRadius:12,padding:'14px',
-              marginBottom:14,border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>
-                プラス収支になった試行の典型パターン
-              </div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
-                ¥{budget.toLocaleString()}投資でプラスになった{pct(result.probPlus)}の試行では…
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <NumCard label="平均ST連チャン数" value={`${result.avgRushChains}連`}
-                  color={C.accentL}/>
-                {result.avgLTChains>0&&(
-                  <NumCard label="うちLT連チャン数" value={`${result.avgLTChains}連`}
-                    color={C.gold}/>
-                )}
-              </div>
-              {Object.keys(result.ballBands).length>0&&(
-                <div style={{marginTop:10,fontSize:11,color:C.muted}}>
-                  <div style={{marginBottom:6}}>出玉内訳（プラス試行のみ）:</div>
-                  {Object.entries(result.ballBands)
-                    .sort((a,b)=>b[1]-a[1])
-                    .map(([k,v])=>(
-                      <div key={k} style={{display:'flex',justifyContent:'space-between',
-                        padding:'4px 0',borderBottom:`1px solid ${C.dim}`}}>
-                        <span>{k}発/連</span>
-                        <span style={{color:C.text,fontWeight:600}}>{v}回</span>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{fontSize:11,color:'#3a3a60',textAlign:'center',lineHeight:1.8,paddingTop:4}}>
-            ※ 釘状態・入賞ムラにより実際の結果は異なります。<br/>
-            ゲーム性の理解のための参考値です。
-          </div>
-        </div>
-      )}
+  return<div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>機種を選択</div>
+      <MSearch value={m} onSelect={x=>{setM(x);setRes(null);}}/>
     </div>
-  );
+
+    {m&&<div style={{background:C.card,borderRadius:12,padding:'12px 14px',
+      border:`1px solid ${C.border}`,marginBottom:14}}>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:6}}>
+        {[{l:`1/${Math.round(1/m.prob)}`,s:'確率'},{l:fp(m.rushRate),s:'RUSH突入'},
+          {l:fp(m.rushContRate),s:'継続率'},
+          ...(m.hasLT?[{l:`LT ${fp(m.ltRate)}`,s:'LT突入率',lt:true}]:[])
+        ].map(b=><div key={b.s} style={{background:b.lt?C.accent+'22':C.dim,borderRadius:7,
+          padding:'6px 10px',textAlign:'center',border:`1px solid ${b.lt?C.accent+'44':C.border}`}}>
+          <div style={{fontSize:14,fontWeight:900,color:b.lt?C.accentL:C.text,
+            fontFamily:'JetBrains Mono,monospace'}}>{b.l}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:1}}>{b.s}</div>
+        </div>)}
+      </div>
+      <div style={{fontSize:11,color:'#5a5a80'}}>{m.memo}</div>
+    </div>}
+
+    {/* 投資額 */}
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>投資額</div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+        {[3000,5000,10000,15000,20000,30000,50000].map(v=>
+          <button key={v} onClick={()=>{setBudget(v);setRes(null);}} style={{
+            padding:'5px 10px',borderRadius:16,border:'none',fontSize:11,fontWeight:600,
+            cursor:'pointer',fontFamily:'inherit',
+            background:budget===v?C.accent:C.dim,color:budget===v?'#fff':C.muted}}>
+            ¥{v>=10000?v/10000+'万':v.toLocaleString()}
+          </button>)}
+      </div>
+      <input type="number" value={budget}
+        onChange={e=>{setBudget(Math.max(500,parseInt(e.target.value)||0));setRes(null);}}
+        style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
+          borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
+          fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
+    </div>
+
+    {/* 実測回転率 */}
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:4}}>
+        実測回転率（台のデータカウンター確認値）
+      </div>
+      <div style={{fontSize:11,color:'#3a3a60',marginBottom:8}}>
+        計算方法: スタート回数 ÷ 投資額(千円)　　ボーダー目安: <strong style={{color:C.text}}>{m?.border||'—'}回/k</strong>
+      </div>
+      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+        <input type="number" step="0.1" value={rot}
+          onChange={e=>{setRot(parseFloat(e.target.value)||0);setRes(null);}}
+          style={{flex:1,background:C.surface,
+            border:`1px solid ${m?(rot>=m.border?C.green:C.red):C.border}`,
+            borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
+            fontFamily:'JetBrains Mono,monospace',outline:'none'}}/>
+        <span style={{color:C.muted,flexShrink:0}}>回/k</span>
+        {m&&<span style={{fontSize:12,fontWeight:700,flexShrink:0,
+          color:rot>=m.border?C.green:C.red}}>{diffLabel}</span>}
+      </div>
+    </div>
+
+    {/* 換金率 */}
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>換金率</div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+        {EXCHANGES.map(e=><button key={e.key} onClick={()=>{setExK(e.key);setRes(null);}} style={{
+          padding:'5px 10px',borderRadius:16,border:'none',fontSize:11,fontWeight:600,
+          cursor:'pointer',fontFamily:'inherit',
+          background:exK===e.key?C.accent:C.dim,color:exK===e.key?'#fff':C.muted}}>
+          {e.label}</button>)}
+      </div>
+    </div>
+
+    <Btn ch={loading?'⏳ 計算中…':m?`${m.short} でシミュレーション（10,000回試行）`:'機種を選択してください'}
+      onClick={run} disabled={!m||loading} size='lg' full/>
+
+    {res&&<div style={{marginTop:20}}>
+      {/* 前提説明 */}
+      <div style={{background:'#111128',borderRadius:12,padding:'12px 14px',
+        marginBottom:14,border:`1px solid ${C.border}`,fontSize:12,color:C.muted,lineHeight:1.9}}>
+        <strong style={{color:C.text,display:'block',marginBottom:6}}>📌 このシミュレーションの読み方</strong>
+        <span style={{color:C.text}}>{m.name}</span>を、<br/>
+        回転率<span style={{color:rot>=m.border?C.green:C.red,fontWeight:700}}> {rot}回/k </span>
+        （ボーダー{m.border}回/k）の台で、<br/>
+        <span style={{color:C.gold,fontWeight:700}}>¥{budget.toLocaleString()}を全額投資した場合</span>の10,000通りの結果分布です。<br/>
+        出玉は<strong>通常回転に再投資せず</strong>、換金して収支計算します。
+      </div>
+
+      {/* 主要指標 */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+        {[{l:'期待収支（平均）',v:fy(res.mean),c:res.mean>=0?C.green:C.red,s:`${fp(res.probPlus)}がプラス収支`},
+          {l:'中央値',v:fy(res.median),c:res.median>=0?C.accentL:C.red,s:'全試行の50%がこの前後'},
+        ].map(x=><div key={x.l} style={{background:C.card,borderRadius:10,padding:'10px 12px',border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:3}}>{x.l}</div>
+          <div style={{fontSize:22,fontWeight:900,color:x.c,fontFamily:'JetBrains Mono,monospace',lineHeight:1}}>{x.v}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:3}}>{x.s}</div>
+        </div>)}
+      </div>
+
+      {/* 収支分布 */}
+      <div style={{background:C.card,borderRadius:12,padding:'14px',marginBottom:12,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>収支分布（パーセンタイル）</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
+          「上位10%」= 10,000回試行したとき上から1,000番目の結果のイメージ
+        </div>
+        {[{l:'下位5%（ほぼ最悪）',v:res.pct5,c:C.red},
+          {l:'下位25%',v:res.pct25,c:'#f87171'},
+          {l:'中央値（最多発生）',v:res.median,c:C.accentL},
+          {l:'上位25%',v:res.pct75,c:'#6ee7b7'},
+          {l:'上位10%',v:res.pct90,c:C.green},
+          {l:'上位5%（ほぼ最高）',v:res.pct95,c:'#34d399'},
+        ].map(r=><div key={r.l} style={{display:'flex',justifyContent:'space-between',
+          padding:'7px 0',borderBottom:`1px solid ${C.dim}`}}>
+          <span style={{fontSize:12,color:C.muted}}>{r.l}</span>
+          <span style={{fontSize:15,fontWeight:700,color:r.c,fontFamily:'JetBrains Mono,monospace'}}>{fy(r.v)}</span>
+        </div>)}
+      </div>
+
+      {/* 発生確率 */}
+      <div style={{background:C.card,borderRadius:12,padding:'14px',marginBottom:12,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>各結果になる確率</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
+          「全額溶ける」= ¥{budget.toLocaleString()}投資して出玉ゼロで終わる展開
+        </div>
+        <Bar v={res.probPlus} label="プラス収支になる確率" sub={fp(res.probPlus)} color={C.accentL}/>
+        <Bar v={res.prob5k}   label="+5,000円以上になる確率"  sub={fp(res.prob5k)}  color={C.green}/>
+        <Bar v={res.prob10k}  label="+10,000円以上"          sub={fp(res.prob10k)} color={C.green}/>
+        <Bar v={res.prob20k}  label="+20,000円以上"          sub={fp(res.prob20k)} color='#34d399'/>
+        <Bar v={res.prob50k}  label="+50,000円以上"          sub={fp(res.prob50k)} color={C.gold}/>
+        <div style={{marginTop:8,borderTop:`1px solid ${C.dim}`,paddingTop:8}}>
+          <Bar v={res.probLossHalf} label={`半額以上(¥${(budget/2).toLocaleString()}以上)溶ける確率`} sub={fp(res.probLossHalf)} color='#f87171'/>
+          <Bar v={res.probLossAll}  label={`全額(¥${budget.toLocaleString()})溶ける確率`} sub={fp(res.probLossAll)}  color={C.red}/>
+        </div>
+      </div>
+
+      {/* 典型的な展開の可視化 */}
+      <div style={{background:C.card,borderRadius:12,padding:'14px',marginBottom:12,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>典型的な展開の内訳</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
+          10,000回試行した中の実際の展開例。どんな当りが起きてこの収支になったか。
+        </div>
+        <PlayLog log={res.medianLog} label="中央値ケース（最も多い典型的な展開）"
+          budget={budget} exYen={res.exchangeYen}/>
+        <PlayLog log={res.p90Log} label="上位10%ケース（かなり恵まれた展開）"
+          budget={budget} exYen={res.exchangeYen}/>
+      </div>
+
+      {res.avgChains>0&&<div style={{background:C.card,borderRadius:12,padding:'14px',
+        marginBottom:12,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:8}}>プラス収支になった試行の平均連チャン数</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <div style={{background:C.dim,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+            <div style={{fontSize:10,color:C.muted}}>平均ST連数</div>
+            <div style={{fontSize:20,fontWeight:900,color:C.accentL,fontFamily:'JetBrains Mono,monospace'}}>{res.avgChains}連</div>
+          </div>
+          {res.avgLT>0&&<div style={{background:C.dim,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+            <div style={{fontSize:10,color:C.muted}}>うちLT連数</div>
+            <div style={{fontSize:20,fontWeight:900,color:C.gold,fontFamily:'JetBrains Mono,monospace'}}>{res.avgLT}連</div>
+          </div>}
+        </div>
+      </div>}
+
+      <div style={{fontSize:11,color:'#3a3a60',textAlign:'center',lineHeight:1.8,paddingTop:4}}>
+        ※ 統計的参考値です。実際の結果を保証しません。<br/>
+        釘状態・入賞ムラにより実際の回転率は変動します。
+      </div>
+    </div>}
+  </div>;
 }
 
-// ── 画面B: RUSH継続シミュレーション ─────────────────────
+// ── 画面B: RUSH継続 ────────────────────────────────────────
 function RushScreen(){
-  const [machine,setMachine]=useState(null);
+  const [m,setM]=useState(null);
   const [chains,setChains]=useState(5);
   const [inLT,setInLT]=useState(false);
-  const [result,setResult]=useState(null);
+  const [res,setRes]=useState(null);
   const [loading,setLoading]=useState(false);
 
   const run=()=>{
-    if(!machine) return;
-    setLoading(true);setResult(null);
+    if(!m) return;
+    setLoading(true);setRes(null);
     requestAnimationFrame(()=>setTimeout(()=>{
-      const r=simRush(machine,chains,inLT);
-      setResult(r);setLoading(false);
+      setRes(simRush(m,chains,inLT));
+      setLoading(false);
     },16));
   };
 
-  return(
-    <div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
-      <div style={{background:'#1a1030',borderRadius:12,padding:'12px 14px',
-        border:`1px solid #3a2060`,marginBottom:16,fontSize:12,color:'#b090d0',lineHeight:1.7}}>
-        現在RUSH（ST）中の台で「あとどれだけ続くか」を確率で確認できます。<br/>
-        <strong style={{color:C.accentL}}>現在X連目</strong>を入力して、今後の継続期待値を計算します。
-      </div>
-
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>機種</div>
-        <MachineSearch value={machine} onSelect={m=>{setMachine(m);setResult(null);}}/>
-      </div>
-
-      {machine&&(
-        <div style={{background:C.card,borderRadius:10,padding:'10px 14px',
-          border:`1px solid ${C.border}`,marginBottom:14}}>
-          <SpecBadges m={machine}/>
-        </div>
-      )}
-
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          現在の連チャン数（何連目か）
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-          {[1,3,5,8,10,15,20].map(v=>(
-            <button key={v} onClick={()=>{setChains(v);setResult(null);}} style={{
-              padding:'6px 12px',borderRadius:18,border:'none',fontSize:12,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:chains===v?C.accent:C.dim,color:chains===v?'#fff':C.muted}}>
-              {v}連
-            </button>
-          ))}
-        </div>
-        <input type="number" value={chains}
-          onChange={e=>{setChains(Math.max(1,parseInt(e.target.value)||1));setResult(null);}}
-          style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
-            borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
-            fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
-      </div>
-
-      {machine?.hasLT&&(
-        <div style={{marginBottom:20}}>
-          <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:6}}>
-            現在LT中ですか？
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            {[{v:false,l:'STのみ'},{v:true,l:'LT中'}].map(({v,l})=>(
-              <button key={l} onClick={()=>{setInLT(v);setResult(null);}} style={{
-                flex:1,padding:'10px',borderRadius:10,border:'none',fontSize:13,fontWeight:600,
-                cursor:'pointer',fontFamily:'inherit',
-                background:inLT===v?C.accent:C.dim,color:inLT===v?'#fff':C.muted}}>
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <Btn onClick={run} disabled={!machine||loading} size='lg' full>
-        {loading?'⏳ 計算中…':machine?`${chains}連目からの継続確率を計算`:' 機種を選択してください'}
-      </Btn>
-
-      {result&&machine&&(
-        <div style={{marginTop:20}}>
-          <div style={{background:'#1a1030',borderRadius:12,padding:'12px 14px',
-            marginBottom:14,border:`1px solid ${C.border}`,fontSize:12,color:C.muted}}>
-            現在 <strong style={{color:C.accentL}}>{chains}連目</strong>
-            {inLT&&<strong style={{color:C.gold}}>（LT中）</strong>}。
-            継続率 <strong style={{color:C.text}}>
-              {pct(inLT?machine.ltContRate:machine.rushContRate)}
-            </strong> での今後の展開予測（50,000回試行）
-          </div>
-
-          <div style={{background:C.card,borderRadius:12,padding:'14px',
-            marginBottom:14,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:12}}>継続確率</div>
-            <Bar value={result.probCont1} max={1} color={C.green}
-              label="あと1回以上続く確率" sub={pct(result.probCont1)}/>
-            <Bar value={result.probCont3} max={1} color={C.accentL}
-              label="あと3回以上続く確率" sub={pct(result.probCont3)}/>
-            <Bar value={result.probCont5} max={1} color={C.gold}
-              label="あと5回以上続く確率" sub={pct(result.probCont5)}/>
-            <Bar value={result.probCont10} max={1} color='#f97316'
-              label="あと10回以上続く確率" sub={pct(result.probCont10)}/>
-          </div>
-
-          <div style={{background:C.card,borderRadius:12,padding:'14px',
-            border:`1px solid ${C.border}`,marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:12}}>
-              今後の期待出玉（今の連チャン以降）
-            </div>
-            {[
-              {label:'中央値（50%のケース）',d:result.p50,color:C.accentL},
-              {label:'上位25%（かなり好運）',d:result.p75,color:C.green},
-              {label:'上位10%（大フィーバー）',d:result.p90,color:C.gold},
-              {label:'上位5%（神展開）',d:result.p95,color:'#f59e0b'},
-            ].map(({label,d,color})=>(
-              <div key={label} style={{display:'flex',justifyContent:'space-between',
-                alignItems:'center',padding:'8px 0',borderBottom:`1px solid ${C.dim}`}}>
-                <span style={{fontSize:12,color:C.muted}}>{label}</span>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:15,fontWeight:700,color,fontFamily:'JetBrains Mono,monospace'}}>
-                    {fmtB(d.balls)}
-                  </div>
-                  <div style={{fontSize:10,color:C.muted}}>追加{d.chain-chains}連</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{fontSize:11,color:'#3a3a60',textAlign:'center',lineHeight:1.8}}>
-            ※ 各連チャンは独立試行です。過去の連数は今後の確率に影響しません。
-          </div>
-        </div>
-      )}
+  return<div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
+    <div style={{background:'#1a1030',borderRadius:12,padding:'11px 14px',
+      border:`1px solid #3a2060`,marginBottom:14,fontSize:12,color:'#b090d0',lineHeight:1.7}}>
+      現在RUSH中の台で「あとどれだけ続くか」を確率計算します。<br/>
+      <strong style={{color:C.accentL}}>現在何連目か</strong>を入力してください。
     </div>
-  );
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>機種</div>
+      <MSearch value={m} onSelect={x=>{setM(x);setRes(null);}}/>
+    </div>
+    {m&&<div style={{background:C.card,borderRadius:10,padding:'10px 14px',
+      border:`1px solid ${C.border}`,marginBottom:14,display:'flex',gap:8,flexWrap:'wrap'}}>
+      {[{l:fp(m.rushContRate),s:'ST継続率'},
+        ...(m.hasLT?[{l:fp(m.ltContRate),s:'LT継続率',lt:true}]:[])
+      ].map(b=><div key={b.s} style={{background:b.lt?C.gold+'22':C.dim,borderRadius:7,padding:'6px 10px',textAlign:'center'}}>
+        <div style={{fontSize:14,fontWeight:900,color:b.lt?C.gold:C.text,fontFamily:'JetBrains Mono,monospace'}}>{b.l}</div>
+        <div style={{fontSize:9,color:C.muted}}>{b.s}</div>
+      </div>)}
+    </div>}
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>現在の連チャン数</div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+        {[1,3,5,8,10,15,20].map(v=><button key={v} onClick={()=>{setChains(v);setRes(null);}} style={{
+          padding:'5px 10px',borderRadius:16,border:'none',fontSize:11,fontWeight:600,
+          cursor:'pointer',fontFamily:'inherit',
+          background:chains===v?C.accent:C.dim,color:chains===v?'#fff':C.muted}}>{v}連</button>)}
+      </div>
+      <input type="number" value={chains}
+        onChange={e=>{setChains(Math.max(1,parseInt(e.target.value)||1));setRes(null);}}
+        style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
+          borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
+          fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
+    </div>
+    {m?.hasLT&&<div style={{marginBottom:20}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:6}}>現在LT中？</div>
+      <div style={{display:'flex',gap:8}}>
+        {[{v:false,l:'ST中'},{v:true,l:'LT中'}].map(x=><button key={x.l}
+          onClick={()=>{setInLT(x.v);setRes(null);}} style={{flex:1,padding:'10px',
+            borderRadius:10,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:inLT===x.v?C.accent:C.dim,color:inLT===x.v?'#fff':C.muted}}>{x.l}</button>)}
+      </div>
+    </div>}
+    <Btn ch={loading?'⏳ 計算中…':m?`${chains}連目からの継続確率を計算`:'機種を選択してください'}
+      onClick={run} disabled={!m||loading} size='lg' full/>
+    {res&&m&&<div style={{marginTop:20}}>
+      <div style={{background:'#1a1030',borderRadius:12,padding:'11px 14px',
+        marginBottom:12,border:`1px solid ${C.border}`,fontSize:12,color:C.muted,lineHeight:1.7}}>
+        {chains}連目{inLT?'（LT中）':''}から継続率{fp(inLT?m.ltContRate:m.rushContRate)}で計算（50,000回試行）
+      </div>
+      <div style={{background:C.card,borderRadius:12,padding:'14px',marginBottom:12,border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:10}}>継続確率</div>
+        <Bar v={res.probCont1}  label="あと1回以上続く確率"   sub={fp(res.probCont1)}  color={C.green}/>
+        <Bar v={res.probCont3}  label="あと3回以上続く確率"   sub={fp(res.probCont3)}  color={C.accentL}/>
+        <Bar v={res.probCont5}  label="あと5回以上続く確率"   sub={fp(res.probCont5)}  color={C.gold}/>
+        <Bar v={res.probCont10} label="あと10回以上続く確率"  sub={fp(res.probCont10)} color='#f97316'/>
+      </div>
+      <div style={{background:C.card,borderRadius:12,padding:'14px',border:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:10}}>今後の期待出玉（今の連チャン以降）</div>
+        {[{l:'中央値（50%）',d:res.p50,c:C.accentL},{l:'上位25%',d:res.p75,c:C.green},
+          {l:'上位10%',d:res.p90,c:C.gold},{l:'上位5%（神展開）',d:res.p95,c:'#f59e0b'},
+        ].map(r=><div key={r.l} style={{display:'flex',justifyContent:'space-between',
+          padding:'7px 0',borderBottom:`1px solid ${C.dim}`}}>
+          <span style={{fontSize:12,color:C.muted}}>{r.l}</span>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:15,fontWeight:700,color:r.c,fontFamily:'JetBrains Mono,monospace'}}>{fb(r.d.balls)}</div>
+            <div style={{fontSize:10,color:C.muted}}>追加{r.d.chain-chains}連</div>
+          </div>
+        </div>)}
+      </div>
+    </div>}
+  </div>;
 }
 
-// ── 画面C: 逆算シミュレーション ─────────────────────────
+// ── 画面C: 逆算ランキング ──────────────────────────────────
 function ReverseScreen(){
-  const [machine,setMachine]=useState(null);
   const [budget,setBudget]=useState(5000);
   const [target,setTarget]=useState(50000);
-  const [rotRate,setRotRate]=useState(18);
-  const [exKey,setExKey]=useState('touka');
-  const [result,setResult]=useState(null);
+  const [rot,setRot]=useState(18);
+  const [exK,setExK]=useState('touka');
+  const [res,setRes]=useState(null);
   const [loading,setLoading]=useState(false);
-
-  const ex=EXCHANGES.find(e=>e.key===exKey);
+  const ex=EXCHANGES.find(e=>e.key===exK);
+  const [expanded,setExpanded]=useState(null);
 
   const run=()=>{
-    if(!machine||target<=budget) return;
-    setLoading(true);setResult(null);
+    if(target<=budget) return;
+    setLoading(true);setRes(null);setExpanded(null);
     requestAnimationFrame(()=>setTimeout(()=>{
-      const r=simReverse(machine,budget,target,rotRate,ex.yen);
-      setResult(r);setLoading(false);
+      setRes(simAllForTarget(budget,target,rot,ex.yen,5000));
+      setLoading(false);
     },16));
   };
 
-  return(
-    <div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
-      <div style={{background:'#1a0a30',borderRadius:12,padding:'12px 14px',
-        border:`1px solid #3a1060`,marginBottom:16,fontSize:12,color:'#c090e0',lineHeight:1.7}}>
-        <strong style={{color:'#e0b0ff'}}>「手持ちX円 → 目標Y円」</strong>を達成できる確率と、<br/>
-        達成した試行で<strong style={{color:'#e0b0ff'}}>実際にどんな出玉パターンが起きたか</strong>を分析します。
-      </div>
+  const tc={甘デジ:'#10b981',ライト:'#06b6d4',ライトミドル:'#6366f1',ミドル:'#f59e0b',
+    ライトハイミドル:'#f97316',ハイミドル:'#ef4444',超ハイミドル:'#dc2626'};
 
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>機種</div>
-        <MachineSearch value={machine} onSelect={m=>{setMachine(m);setResult(null);}}/>
-      </div>
-
-      {/* 現在の手持ち */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          現在の手持ち（投資額）
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-          {[2000,3000,5000,8000,10000,15000,20000].map(v=>(
-            <button key={v} onClick={()=>{setBudget(v);setResult(null);}} style={{
-              padding:'5px 10px',borderRadius:18,border:'none',fontSize:11,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:budget===v?'#7c3aed':C.dim,color:budget===v?'#fff':C.muted}}>
-              ¥{v>=10000?v/10000+'万':v.toLocaleString()}
-            </button>
-          ))}
-        </div>
-        <input type="number" value={budget}
-          onChange={e=>{setBudget(Math.max(500,parseInt(e.target.value)||0));setResult(null);}}
-          style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
-            borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
-            fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
-      </div>
-
-      {/* 目標金額 */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>
-          目標金額（この金額以上にしたい）
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-          {[10000,20000,30000,50000,100000].map(v=>(
-            <button key={v} onClick={()=>{setTarget(v);setResult(null);}} style={{
-              padding:'5px 10px',borderRadius:18,border:'none',fontSize:11,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:target===v?C.gold:C.dim,color:target===v?'#000':C.muted}}>
-              ¥{v>=10000?v/10000+'万':v.toLocaleString()}
-            </button>
-          ))}
-        </div>
-        <input type="number" value={target}
-          onChange={e=>{setTarget(Math.max(budget+1000,parseInt(e.target.value)||0));setResult(null);}}
-          style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
-            borderRadius:10,color:C.gold,padding:'11px 14px',fontSize:18,fontWeight:700,
-            fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
-        {budget>0&&target>budget&&(
-          <div style={{fontSize:12,color:C.muted,marginTop:6}}>
-            必要な増加: <strong style={{color:C.gold}}>¥{(target-budget).toLocaleString()}</strong>
-            （{Math.round((target/budget-1)*100)}%増）
-          </div>
-        )}
-      </div>
-
-      {/* 実測回転率 */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:6}}>
-          実測回転率（回/k）
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <input type="number" step="0.1" value={rotRate}
-            onChange={e=>{setRotRate(parseFloat(e.target.value)||0);setResult(null);}}
-            style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,
-              borderRadius:10,color:C.text,padding:'11px 14px',fontSize:18,fontWeight:700,
-              fontFamily:'JetBrains Mono,monospace',outline:'none'}}/>
-          <span style={{fontSize:14,color:C.muted,flexShrink:0}}>回/k</span>
-        </div>
-      </div>
-
-      {/* 換金率 */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,color:C.muted,fontWeight:600,letterSpacing:'.06em',marginBottom:8}}>換金率</div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {EXCHANGES.map(e=>(
-            <button key={e.key} onClick={()=>{setExKey(e.key);setResult(null);}} style={{
-              padding:'6px 10px',borderRadius:18,border:'none',fontSize:11,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:exKey===e.key?C.accent:C.dim,color:exKey===e.key?'#fff':C.muted}}>
-              {e.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <Btn onClick={run} disabled={!machine||loading||target<=budget} size='lg' full
-        color='#7c3aed'>
-        {loading?'⏳ 計算中（約1秒）…':
-          machine?`¥${budget.toLocaleString()} → ¥${target.toLocaleString()} の達成パターンを解析`:
-          '機種を選択してください'}
-      </Btn>
-
-      {result&&machine&&(
-        <div style={{marginTop:20}}>
-          {/* 達成確率 */}
-          <div style={{background:result.rate>0.1?'#0a1a10':'#1a0a0a',
-            borderRadius:14,padding:'16px',marginBottom:14,
-            border:`1px solid ${result.rate>0.1?C.green:C.red}44`,textAlign:'center'}}>
-            <div style={{fontSize:12,color:C.muted,marginBottom:8}}>
-              {machine.short} で ¥{budget.toLocaleString()} → ¥{target.toLocaleString()} を達成する確率
-            </div>
-            <div style={{fontSize:52,fontWeight:900,
-              color:result.rate>0.2?C.green:result.rate>0.1?C.gold:C.red,
-              fontFamily:'JetBrains Mono,monospace',lineHeight:1}}>
-              {pct(result.rate)}
-            </div>
-            <div style={{fontSize:12,color:C.muted,marginTop:8}}>
-              10,000回試行中 {result.successN}回 達成
-            </div>
-          </div>
-
-          {result.successN>0?(
-            <>
-              {/* 達成時の出玉パターン */}
-              <div style={{background:C.card,borderRadius:12,padding:'14px',
-                marginBottom:14,border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>
-                  ✅ 達成した試行の出玉パターン（平均）
-                </div>
-                <div style={{fontSize:11,color:C.muted,marginBottom:12}}>
-                  ¥{budget.toLocaleString()} → ¥{target.toLocaleString()}以上になった{pct(result.rate)}の試行では…
-                </div>
-
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-                  <NumCard label="平均総連チャン数" value={`${result.avgChain}連`}
-                    color={C.accentL} sub="ST合計"/>
-                  {result.avgLT>0&&(
-                    <NumCard label="うちLT連チャン" value={`${result.avgLT}連`}
-                      color={C.gold} sub="LT合計"/>
-                  )}
-                  <NumCard label="平均総獲得出玉" value={fmtB(result.avgBalls)}
-                    color={C.green}/>
-                </div>
-
-                {/* 出玉パターン詳細 */}
-                <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>
-                  当り出玉の内訳（達成試行の平均）
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:0}}>
-                  {[
-                    ...(result.avg7500>0?[{label:'7,500発以上の大当り',val:result.avg7500,color:'#fbbf24'}]:[]),
-                    ...(result.avg6000>0?[{label:'6,000発の大当り',val:result.avg6000,color:C.gold}]:[]),
-                    ...(result.avg3000>0?[{label:'3,000発の大当り',val:result.avg3000,color:C.green}]:[]),
-                    ...(result.avg1500>0?[{label:'1,500発の大当り',val:result.avg1500,color:C.accentL}]:[]),
-                  ].map(({label,val,color})=>(
-                    <div key={label} style={{display:'flex',alignItems:'center',
-                      padding:'10px 0',borderBottom:`1px solid ${C.dim}`}}>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:700,color}}>{label}</div>
-                      </div>
-                      <div style={{textAlign:'right'}}>
-                        <div style={{fontSize:20,fontWeight:900,color,
-                          fontFamily:'JetBrains Mono,monospace'}}>
-                          平均 {val}回
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{marginTop:14,background:'#0e0e28',borderRadius:8,
-                  padding:'10px 12px',fontSize:12,color:C.muted,lineHeight:1.8}}>
-                  💡 つまり <strong style={{color:C.text}}>¥{budget.toLocaleString()}→¥{target.toLocaleString()}</strong> を達成するには、<br/>
-                  {result.avg3000>0&&<>平均して <strong style={{color:C.green}}>3,000発を約{result.avg3000}回</strong><br/></>}
-                  {result.avg7500>0&&<>うち <strong style={{color:'#fbbf24'}}>7,500発以上を約{result.avg7500}回</strong><br/></>}
-                  <strong style={{color:C.accentL}}>合計{result.avgChain}連前後</strong>が必要なことが多い。
-                </div>
-              </div>
-            </>
-          ):(
-            <div style={{background:'#1a0a0a',borderRadius:12,padding:20,
-              textAlign:'center',color:C.muted}}>
-              10,000回試行中、達成した試行が0回でした。<br/>
-              目標金額を下げるか、別の機種を選んでください。
-            </div>
-          )}
-
-          <div style={{fontSize:11,color:'#3a3a60',textAlign:'center',lineHeight:1.8,marginTop:8}}>
-            ※ 統計的参考値です。実際の遊技結果を保証しません。
-          </div>
-        </div>
-      )}
+  return<div style={{flex:1,overflowY:'auto',padding:'16px 16px 60px'}}>
+    <div style={{background:'#1a0a30',borderRadius:12,padding:'11px 14px',
+      border:`1px solid #3a1060`,marginBottom:14,fontSize:12,color:'#c090e0',lineHeight:1.7}}>
+      <strong style={{color:'#e0b0ff'}}>¥X → ¥Y</strong>を達成できる確率を<strong style={{color:'#e0b0ff'}}>全機種ランキング形式</strong>で表示します。<br/>
+      達成した場合にどんな出玉パターンが必要かも分析します。
     </div>
-  );
+
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>手持ち（投資額）</div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+        {[2000,3000,5000,8000,10000,15000,20000].map(v=>
+          <button key={v} onClick={()=>{setBudget(v);setRes(null);}} style={{
+            padding:'4px 9px',borderRadius:16,border:'none',fontSize:11,fontWeight:600,
+            cursor:'pointer',fontFamily:'inherit',
+            background:budget===v?C.accent:C.dim,color:budget===v?'#fff':C.muted}}>
+            ¥{v>=10000?v/10000+'万':v.toLocaleString()}</button>)}
+      </div>
+      <input type="number" value={budget}
+        onChange={e=>{setBudget(Math.max(500,parseInt(e.target.value)||0));setRes(null);}}
+        style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
+          borderRadius:10,color:C.text,padding:'10px 14px',fontSize:16,fontWeight:700,
+          fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
+    </div>
+
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:8}}>目標金額</div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+        {[10000,20000,30000,50000,100000].map(v=>
+          <button key={v} onClick={()=>{setTarget(v);setRes(null);}} style={{
+            padding:'4px 9px',borderRadius:16,border:'none',fontSize:11,fontWeight:600,
+            cursor:'pointer',fontFamily:'inherit',
+            background:target===v?C.gold:C.dim,color:target===v?'#000':C.muted}}>
+            ¥{v/10000}万</button>)}
+      </div>
+      <input type="number" value={target}
+        onChange={e=>{setTarget(Math.max(budget+1000,parseInt(e.target.value)||0));setRes(null);}}
+        style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
+          borderRadius:10,color:C.gold,padding:'10px 14px',fontSize:16,fontWeight:700,
+          fontFamily:'JetBrains Mono,monospace',outline:'none',boxSizing:'border-box'}}/>
+      {target>budget&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>
+        必要増加: <strong style={{color:C.gold}}>¥{(target-budget).toLocaleString()}</strong>
+        （{Math.round((target/budget-1)*100)}%増）
+      </div>}
+    </div>
+
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:20}}>
+      <div>
+        <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:6}}>実測回転率</div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <input type="number" step="0.1" value={rot}
+            onChange={e=>{setRot(parseFloat(e.target.value)||0);setRes(null);}}
+            style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,
+              borderRadius:10,color:C.text,padding:'10px 12px',fontSize:16,fontWeight:700,
+              fontFamily:'JetBrains Mono,monospace',outline:'none'}}/>
+          <span style={{color:C.muted,fontSize:12,flexShrink:0}}>回/k</span>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:6}}>換金率</div>
+        <select value={exK} onChange={e=>{setExK(e.target.value);setRes(null);}}
+          style={{width:'100%',background:C.surface,border:`1px solid ${C.border}`,
+            borderRadius:10,color:C.text,padding:'10px 10px',fontSize:12,
+            outline:'none',fontFamily:'inherit',appearance:'none'}}>
+          {EXCHANGES.map(e=><option key={e.key} value={e.key}>{e.label}</option>)}
+        </select>
+      </div>
+    </div>
+
+    <Btn ch={loading?`⏳ 全${MACHINES.length}機種を計算中…（約3秒）`:`全${MACHINES.length}機種でランキングを生成`}
+      onClick={run} disabled={loading||target<=budget} size='lg' full color='#7c3aed'/>
+
+    {res&&<div style={{marginTop:20}}>
+      <div style={{fontSize:12,color:C.muted,marginBottom:12}}>
+        ¥{budget.toLocaleString()} → ¥{target.toLocaleString()} 達成確率ランキング
+        （各機種5,000回試行 · 回転率{rot}回/k · {ex.label}）
+      </div>
+      {res.map((r,i)=>{
+        const color=r.rate>=0.20?C.green:r.rate>=0.10?C.gold:r.rate>=0.05?C.accentL:C.muted;
+        const exp=expanded===r.m.id;
+        return<div key={r.m.id} style={{background:C.card,borderRadius:12,
+          border:`1px solid ${C.border}`,marginBottom:8,overflow:'hidden'}}>
+          <div onClick={()=>setExpanded(exp?null:r.m.id)}
+            style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',cursor:'pointer'}}>
+            <div style={{fontSize:18,fontWeight:900,color:C.dim,minWidth:28,
+              fontFamily:'JetBrains Mono,monospace',textAlign:'center'}}>{i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:3}}>
+                <span style={{fontSize:10,background:(tc[r.m.typeLabel]||'#6b7280')+'22',
+                  color:tc[r.m.typeLabel]||'#6b7280',borderRadius:4,padding:'1px 5px',
+                  fontWeight:700,flexShrink:0}}>{r.m.typeLabel}</span>
+                <span style={{fontSize:13,fontWeight:700,overflow:'hidden',
+                  textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.m.name}</span>
+              </div>
+              <div style={{fontSize:11,color:C.muted}}>{r.m.memo}</div>
+            </div>
+            <div style={{textAlign:'center',flexShrink:0}}>
+              <div style={{fontSize:22,fontWeight:900,color,fontFamily:'JetBrains Mono,monospace',lineHeight:1}}>
+                {fp(r.rate)}</div>
+              <div style={{fontSize:9,color,fontWeight:700,marginTop:1}}>達成確率</div>
+            </div>
+          </div>
+          {exp&&r.successN>0&&<div style={{padding:'0 14px 14px',borderTop:`1px solid ${C.dim}`}}>
+            <div style={{fontSize:11,color:C.muted,margin:'10px 0 8px'}}>
+              達成した{r.successN}試行の平均出玉パターン:
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:8}}>
+              {[{l:'総連チャン',v:`${r.avgChains}連`,c:C.accentL},
+                ...(r.avgLT>0?[{l:'LT連チャン',v:`${r.avgLT}連`,c:C.gold}]:[]),
+                ...(r.avg7500>0?[{l:'7500発以上',v:`${r.avg7500}回`,c:'#fbbf24'}]:[]),
+                ...(r.avg3000>0?[{l:'3000発',v:`${r.avg3000}回`,c:C.green}]:[]),
+                ...(r.avg1500>0?[{l:'1500発',v:`${r.avg1500}回`,c:C.accentL}]:[]),
+              ].map(x=><div key={x.l} style={{background:C.dim,borderRadius:6,padding:'5px 6px',textAlign:'center'}}>
+                <div style={{fontSize:14,fontWeight:900,color:x.c,fontFamily:'JetBrains Mono,monospace'}}>{x.v}</div>
+                <div style={{fontSize:9,color:C.muted}}>{x.l}</div>
+              </div>)}
+            </div>
+            <div style={{fontSize:11,color:'#3a3a60',lineHeight:1.7}}>
+              💡 ¥{budget.toLocaleString()}→¥{target.toLocaleString()}には
+              平均<strong style={{color:C.text}}>{r.avgChains}連</strong>前後が必要。
+              {r.avg7500>0&&<>うち<strong style={{color:'#fbbf24'}}> 7500発×{r.avg7500}回</strong>が達成のカギ。</>}
+              {r.avg3000>0&&r.avg7500===0&&<>うち<strong style={{color:C.green}}> 3000発×{r.avg3000}回</strong>が達成のカギ。</>}
+            </div>
+          </div>}
+          {exp&&r.successN===0&&<div style={{padding:'10px 14px 14px',fontSize:12,color:C.muted,borderTop:`1px solid ${C.dim}`}}>
+            5,000回試行中、達成した試行がありませんでした。
+          </div>}
+        </div>;
+      })}
+      <div style={{fontSize:11,color:'#3a3a60',textAlign:'center',lineHeight:1.8,paddingTop:8}}>
+        ※ 統計的参考値です。実際の遊技結果を保証しません。<br/>
+        タップで達成時の出玉パターンを確認できます。
+      </div>
+    </div>}
+  </div>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// メインアプリ（タブ切替）
-// ═══════════════════════════════════════════════════════════
+// メインアプリ
 function App(){
   const [tab,setTab]=useState('sim');
-
-  const tabs=[
-    {key:'sim',   icon:'📊', label:'投資分析'},
-    {key:'rush',  icon:'🔥', label:'RUSH継続'},
-    {key:'rev',   icon:'💹', label:'逆算'},
-  ];
-
-  return(
-    <div style={{display:'flex',flexDirection:'column',height:'100vh',
-      background:C.bg,overflow:'hidden'}}>
-      {/* ヘッダー */}
-      <div style={{padding:'12px 16px 10px',borderBottom:`1px solid ${C.border}`,
-        flexShrink:0,background:'linear-gradient(180deg,#0e0e2a,#07071a)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:22}}>🎰</span>
-          <div>
-            <div style={{fontSize:18,fontWeight:900,letterSpacing:'-.5px'}}>PachiScope</div>
-            <div style={{fontSize:10,color:C.muted}}>パチンコ期待値シミュレーター</div>
-          </div>
+  const tabs=[{k:'sim',icon:'📊',l:'投資分析'},{k:'rush',icon:'🔥',l:'RUSH継続'},{k:'rev',icon:'💹',l:'逆算'}];
+  return<div style={{display:'flex',flexDirection:'column',height:'100vh',background:C.bg,overflow:'hidden'}}>
+    <div style={{padding:'12px 16px 10px',borderBottom:`1px solid ${C.border}`,flexShrink:0,
+      background:'linear-gradient(180deg,#0e0e2a,#07071a)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontSize:22}}>🎰</span>
+        <div>
+          <div style={{fontSize:18,fontWeight:900,letterSpacing:'-.5px'}}>PachiScope</div>
+          <div style={{fontSize:10,color:C.muted}}>パチンコ期待値シミュレーター · {MACHINES.length}機種収録</div>
         </div>
       </div>
-
-      {/* タブ */}
-      <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,
-        background:C.surface,flexShrink:0}}>
-        {tabs.map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{
-            flex:1,padding:'10px 4px',border:'none',cursor:'pointer',
-            fontFamily:'inherit',fontSize:12,fontWeight:tab===t.key?700:400,
-            background:'transparent',
-            color:tab===t.key?C.accentL:C.muted,
-            borderBottom:`2px solid ${tab===t.key?C.accent:'transparent'}`,
-            transition:'color .2s'}}>
-            <div style={{fontSize:18}}>{t.icon}</div>
-            <div style={{marginTop:2}}>{t.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* コンテンツ */}
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-        {tab==='sim'  && <SimScreen/>}
-        {tab==='rush' && <RushScreen/>}
-        {tab==='rev'  && <ReverseScreen/>}
-      </div>
     </div>
-  );
+    <div style={{display:'flex',borderBottom:`1px solid ${C.border}`,background:C.surface,flexShrink:0}}>
+      {tabs.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{flex:1,padding:'10px 4px',
+        border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:tab===t.k?700:400,
+        background:'transparent',color:tab===t.k?C.accentL:C.muted,
+        borderBottom:`2px solid ${tab===t.k?C.accent:'transparent'}`}}>
+        <div style={{fontSize:18}}>{t.icon}</div>
+        <div style={{marginTop:2}}>{t.l}</div>
+      </button>)}
+    </div>
+    <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+      {tab==='sim'&&<SimScreen/>}
+      {tab==='rush'&&<RushScreen/>}
+      {tab==='rev'&&<ReverseScreen/>}
+    </div>
+  </div>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  React.createElement(App)
-);
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
 </html>
