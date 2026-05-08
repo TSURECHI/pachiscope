@@ -290,77 +290,93 @@ function weightedRandom(items){
   return items[items.length-1].balls;
 }
 
-// 1試行: 投資額を使い切るまたは当りが出るまでをシミュレーション
-// rotRate: 実測回転率（回/k）
-// 戻り値: {totalBalls, rushChains, ltChains, pattern, ballLog}
-function oneTrial(m, rotRate, yen){
-  const tamaPerYen = 0.25; // 4円等価基準（換金率は後で補正）
-  let tama = Math.floor(yen * tamaPerYen); // 所持玉（4円換算）
-  const costPerRot = 250 / rotRate; // 1回転のコスト（玉数）
+// ─────────────────────────────────────────────────────────
+// 1試行の設計（正しいパチンコモデル）
+//
+// 【重要な前提】
+// ① 通常時: 投資額(yen)を1000円ずつ消化。出玉は通常回転に使わない。
+//    （現実: 出玉は右打ちSTで獲得→交換→手元に残る）
+// ② 大当り出玉 + RUSH連チャン出玉 を積み上げる
+// ③ RUSH終了後は残り投資額で通常回転を続ける
+// ④ 最終収支 = 全獲得出玉 × 換金率(yen/玉) - 投資額
+//
+// 【シミュレーションが表すこと】
+// 「この投資額を全部使い切ったとき、どんな収支になるか」
+// ・当たれば: 出玉獲得→RUSH突入すれば連チャン→また通常に戻り残額消化
+// ・1回も当たらなければ: 出玉ゼロ → 投資額が全損
+// ─────────────────────────────────────────────────────────
+function oneTrial(m, rotRate, budget, exchangeYen){
+  // 通常時の総回転数（投資額から計算、出玉で増えない）
+  let remainRots = Math.floor(budget / 1000 * rotRate);
 
-  let totalBalls = 0;     // 獲得出玉合計
-  let rushChains = 0;     // ST連チャン数
-  let ltChains   = 0;     // LT連チャン数
-  let ballLog    = [];    // 出玉履歴（[{type,balls}]）
+  let totalBalls = 0;   // 獲得出玉の合計（換金対象）
+  let rushChains = 0;
+  let ltChains   = 0;
+  let ballLog    = [];
 
-  // ── 通常時ループ ──
-  while(tama > 0){
-    // 1回転消費
-    tama -= costPerRot;
-    if(tama<=0) break;
+  // ── 通常時ループ ──────────────────────────────────────
+  while(remainRots > 0){
+    // 次の大当りまでの回転数（幾何分布）
+    // 1回転ずつ判定すると遅いのでまとめてサンプリング
+    let rots = 0;
+    while(true){
+      rots++;
+      if(Math.random() < m.prob) break;
+    }
 
-    // 大当り抽選
-    if(Math.random() >= m.prob) continue;
+    if(rots > remainRots){
+      remainRots = 0;
+      break; // 残り回転数内に当たらなかった
+    }
+    remainRots -= rots;
 
-    // ── 初当り ──
+    // ── 初当り ────────────────────────────────────────
     const initBalls = weightedRandom(m.normalPayouts);
     totalBalls += initBalls;
-    tama       += initBalls;
     ballLog.push({type:'初当り', balls:initBalls});
 
     // RUSH突入判定
-    if(Math.random() >= m.rushRate) continue; // 非突入
+    if(Math.random() >= m.rushRate) continue; // 非突入→通常に戻る
 
-    // ── ST（RUSH）ループ ──
+    // ── ST/RUSHループ ──────────────────────────────────
+    // ※ RUSH中は出玉を積み上げるだけ（右打ち消費は出玉から相殺済みとする）
     let inLT = m.hasLT && (Math.random() < m.ltRate);
-    let chain = 0;
 
     while(true){
-      chain++;
       const contRate = inLT ? m.ltContRate : m.rushContRate;
-      const payouts  = inLT ? m.ltPayouts  : m.rushPayouts;
+      const payouts  = (inLT && m.ltPayouts.length) ? m.ltPayouts : m.rushPayouts;
       const b = weightedRandom(payouts.length ? payouts : [{balls:1500,rate:1}]);
 
       totalBalls += b;
-      tama       += b;
       rushChains++;
       if(inLT) ltChains++;
       ballLog.push({type: inLT?'LT':'ST', balls:b});
 
-      // コンプリート上限
-      if(totalBalls >= 95000) return {totalBalls,rushChains,ltChains,ballLog};
+      if(totalBalls >= 95000){
+        // コンプリート上限: 強制終了
+        return {totalBalls, rushChains, ltChains, ballLog,
+          diffYen: Math.round(totalBalls * exchangeYen - budget)};
+      }
 
-      // 継続判定
-      if(Math.random() >= contRate) break;
+      if(Math.random() >= contRate) break; // 非継続→RUSH終了
 
-      // LT昇格チャンス（ST中毎連）
-      if(m.hasLT && !inLT && Math.random() < m.ltRate) inLT=true;
+      // LT昇格チャンス
+      if(m.hasLT && !inLT && Math.random() < m.ltRate) inLT = true;
     }
+    // RUSH終了後は通常時に戻り、残り回転数を消化
   }
 
-  return {totalBalls, rushChains, ltChains, ballLog};
+  const diffYen = Math.round(totalBalls * exchangeYen - budget);
+  return {totalBalls, rushChains, ltChains, ballLog, diffYen};
 }
 
 // メインシミュレーション（10,000試行）
 function simulate(m, budget, rotRate, exchangeYen, N=10000){
   const results=[];
-  const spentTama = Math.floor(budget * 0.25); // 等価換算投資玉数
 
   for(let i=0;i<N;i++){
-    const t = oneTrial(m, rotRate, budget);
-    const diffTama = t.totalBalls - spentTama;
-    const diffYen  = Math.round(diffTama * exchangeYen);
-    results.push({...t, diffYen, diffTama});
+    const t = oneTrial(m, rotRate, budget, exchangeYen);
+    results.push(t);
   }
 
   results.sort((a,b)=>a.diffYen-b.diffYen);
@@ -442,15 +458,13 @@ function simRush(m, currentChain, inLT, N=50000){
 
 // 逆算シミュレーション（X円→Y円以上にするには）
 function simReverse(m, budget, target, rotRate, exchangeYen, N=10000){
-  const spentTama=Math.floor(budget*0.25);
-  const targetDiffYen=target-budget; // 必要な収支差
+  const targetDiffYen=target-budget; // 必要な収支差（目標到達に必要なプラス分）
   const successResults=[];
 
   for(let i=0;i<N;i++){
-    const t=oneTrial(m,rotRate,budget);
-    const diffTama=t.totalBalls-spentTama;
-    const diffYen=Math.round(diffTama*exchangeYen);
-    if(diffYen>=targetDiffYen) successResults.push({...t,diffYen,diffTama});
+    const t=oneTrial(m,rotRate,budget,exchangeYen);
+    // oneTrial内でdiffYen（収支差額）を計算済み
+    if(t.diffYen>=targetDiffYen) successResults.push(t);
   }
 
   const rate=successResults.length/N;
